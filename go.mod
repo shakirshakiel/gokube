@@ -3,6 +3,7 @@ module etcdtest
 go 1.23.1
 
 require (
+	github.com/emicklei/go-restful/v3 v3.12.1
 	github.com/stretchr/testify v1.9.0
 	go.etcd.io/etcd/api/v3 v3.5.16
 	go.etcd.io/etcd/client/v3 v3.5.16

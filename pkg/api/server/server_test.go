@@ -1,0 +1,117 @@
+package server
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/emicklei/go-restful/v3"
+	"github.com/stretchr/testify/assert"
+	"go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/server/v3/embed"
+
+	"etcdtest/pkg/api"
+	"etcdtest/pkg/registry"
+	"etcdtest/pkg/storage"
+)
+
+func setupTestEnvironment(t *testing.T) (*APIServer, *embed.Etcd, func()) {
+	// Start embedded etcd using util.StartEtcdServer
+	e, dataDir, err := storage.StartEmbeddedEtcd()
+	if err != nil {
+		t.Fatalf("Failed to start etcd: %v", err)
+	}
+
+	// Create etcd client
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints: []string{e.Config().AdvertiseClientUrls[0].String()},
+	})
+	if err != nil {
+		t.Fatalf("Failed to create etcd client: %v", err)
+	}
+
+	// Create storage, registry, and API server
+	store := storage.NewEtcdStorage(client)
+	nodeRegistry := registry.NewNodeRegistry(store)
+	apiServer := NewAPIServer(nodeRegistry)
+
+	cleanup := func() {
+		client.Close()
+		storage.StopEmbeddedEtcd(e, dataDir)
+	}
+
+	return apiServer, e, cleanup
+}
+
+func TestCreateNode(t *testing.T) {
+	apiServer, _, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	node := &api.Node{
+		ObjectMeta: api.ObjectMeta{
+			Name: "test-node",
+		},
+		Status: api.NodeReady,
+	}
+
+	body, _ := json.Marshal(node)
+	req := httptest.NewRequest("POST", "/api/v1/nodes", bytes.NewReader(body))
+	req.Header.Set("Content-Type", restful.MIME_JSON)
+	resp := httptest.NewRecorder()
+
+	container := restful.NewContainer()
+	apiServer.registerNodeRoutes(container)
+	container.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusCreated, resp.Code)
+
+	var createdNode api.Node
+	err := json.Unmarshal(resp.Body.Bytes(), &createdNode)
+	assert.NoError(t, err)
+	assert.Equal(t, node.Name, createdNode.Name)
+	assert.Equal(t, node.Status, createdNode.Status)
+}
+
+func TestUpdateNodeStatus(t *testing.T) {
+	apiServer, _, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	// First, create a node
+	node := &api.Node{
+		ObjectMeta: api.ObjectMeta{
+			Name: "test-node",
+		},
+		Status: api.NodeReady,
+	}
+
+	err := apiServer.nodeRegistry.CreateNode(context.Background(), node)
+	assert.NoError(t, err)
+
+	// Now, update the node's status
+	updatedNode := &api.Node{
+		ObjectMeta: api.ObjectMeta{
+			Name: "test-node",
+		},
+		Status: api.NodeNotReady,
+	}
+
+	body, _ := json.Marshal(updatedNode)
+	req := httptest.NewRequest("PUT", "/api/v1/nodes/test-node", bytes.NewReader(body))
+	req.Header.Set("Content-Type", restful.MIME_JSON)
+	resp := httptest.NewRecorder()
+
+	container := restful.NewContainer()
+	apiServer.registerNodeRoutes(container)
+	container.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var returnedNode api.Node
+	err = json.Unmarshal(resp.Body.Bytes(), &returnedNode)
+	assert.NoError(t, err)
+	assert.Equal(t, updatedNode.Name, returnedNode.Name)
+	assert.Equal(t, updatedNode.Status, returnedNode.Status)
+}
