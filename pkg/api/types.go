@@ -12,8 +12,18 @@ const (
 	PodStatusRunning    PodStatus = "Running"
 )
 
+type Container struct {
+	Image string `json:"image"`
+}
+
+type PodSpec struct {
+	Containers []Container `json:"containers"`
+	Replicas   int32       `json:"replicas"`
+}
+
 type Pod struct {
 	Name     string    `json:"name"`
+	Spec     PodSpec   `json:"spec"`
 	NodeName string    `json:"nodeName,omitempty"`
 	Status   PodStatus `json:"status"`
 	// Add other fields as needed

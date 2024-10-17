@@ -37,6 +37,11 @@ func (r *PodRegistry) CreatePod(ctx context.Context, pod *api.Pod) error {
 		pod.Status = api.PodStatusUnassigned
 	}
 
+	// Validate Pod spec
+	if err := validatePodSpec(pod.Spec); err != nil {
+		return fmt.Errorf("invalid pod spec: %w", err)
+	}
+
 	return r.storage.Create(ctx, key, pod)
 }
 
@@ -59,6 +64,12 @@ func (r *PodRegistry) UpdatePod(ctx context.Context, pod *api.Pod) error {
 	defer r.mutex.Unlock()
 
 	key := podPrefix + pod.Name
+
+	// Validate Pod spec
+	if err := validatePodSpec(pod.Spec); err != nil {
+		return fmt.Errorf("invalid pod spec: %w", err)
+	}
+
 	return r.storage.Update(ctx, key, pod)
 }
 
@@ -97,4 +108,19 @@ func (r *PodRegistry) ListUnassignedPods(ctx context.Context) ([]*api.Pod, error
 	}
 
 	return unassignedPods, nil
+}
+
+func validatePodSpec(spec api.PodSpec) error {
+	if spec.Replicas < 1 {
+		return fmt.Errorf("replicas must be at least 1")
+	}
+	if len(spec.Containers) == 0 {
+		return fmt.Errorf("at least one container must be specified")
+	}
+	for _, container := range spec.Containers {
+		if container.Image == "" {
+			return fmt.Errorf("container image must not be empty")
+		}
+	}
+	return nil
 }

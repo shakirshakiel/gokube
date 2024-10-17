@@ -165,6 +165,12 @@ func (s *APIServer) createPod(request *restful.Request, response *restful.Respon
 		return
 	}
 
+	// Validate Pod spec
+	if err := validatePodSpec(pod.Spec); err != nil {
+		writeError(response, http.StatusBadRequest, fmt.Errorf("invalid pod spec: %w", err))
+		return
+	}
+
 	err = s.podRegistry.CreatePod(request.Request.Context(), pod)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err)
@@ -208,8 +214,13 @@ func (s *APIServer) updatePod(request *restful.Request, response *restful.Respon
 	}
 
 	if name != pod.Name {
-		writeError(response, http.StatusBadRequest,
-			fmt.Errorf("pod name in URL does not match the name in the request body"))
+		writeError(response, http.StatusBadRequest, fmt.Errorf("pod name in URL does not match pod name in request body"))
+		return
+	}
+
+	// Validate Pod spec
+	if err := validatePodSpec(pod.Spec); err != nil {
+		writeError(response, http.StatusBadRequest, fmt.Errorf("invalid pod spec: %w", err))
 		return
 	}
 
@@ -243,4 +254,19 @@ func (s *APIServer) listUnassignedPods(request *restful.Request, response *restf
 	}
 
 	writeResponse(response, http.StatusOK, pods)
+}
+
+func validatePodSpec(spec api.PodSpec) error {
+	if spec.Replicas < 1 {
+		return fmt.Errorf("replicas must be at least 1")
+	}
+	if len(spec.Containers) == 0 {
+		return fmt.Errorf("at least one container must be specified")
+	}
+	for _, container := range spec.Containers {
+		if container.Image == "" {
+			return fmt.Errorf("container image must not be empty")
+		}
+	}
+	return nil
 }
