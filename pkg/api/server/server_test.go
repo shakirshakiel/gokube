@@ -10,11 +10,10 @@ import (
 
 	"github.com/emicklei/go-restful/v3"
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/etcd/client/v3"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
 
 	"etcdtest/pkg/api"
-	"etcdtest/pkg/registry"
 	"etcdtest/pkg/storage"
 )
 
@@ -35,8 +34,7 @@ func setupTestEnvironment(t *testing.T) (*APIServer, *embed.Etcd, func()) {
 
 	// Create storage, registry, and API server
 	store := storage.NewEtcdStorage(client)
-	nodeRegistry := registry.NewNodeRegistry(store)
-	apiServer := NewAPIServer(nodeRegistry)
+	apiServer := NewAPIServer(store)
 
 	cleanup := func() {
 		client.Close()
@@ -63,7 +61,7 @@ func TestCreateNode(t *testing.T) {
 	resp := httptest.NewRecorder()
 
 	container := restful.NewContainer()
-	apiServer.registerNodeRoutes(container)
+	apiServer.registerRoutes(container)
 	container.ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusCreated, resp.Code)
@@ -104,7 +102,7 @@ func TestUpdateNodeStatus(t *testing.T) {
 	resp := httptest.NewRecorder()
 
 	container := restful.NewContainer()
-	apiServer.registerNodeRoutes(container)
+	apiServer.registerRoutes(container)
 	container.ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)

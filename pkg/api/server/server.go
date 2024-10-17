@@ -7,41 +7,52 @@ import (
 
 	"etcdtest/pkg/api"
 	"etcdtest/pkg/registry"
+	"etcdtest/pkg/storage"
+
 	"github.com/emicklei/go-restful/v3"
 )
 
 // APIServer represents the API server
 type APIServer struct {
 	nodeRegistry *registry.NodeRegistry
+	podRegistry  *registry.PodRegistry
 }
 
 // NewAPIServer creates a new instance of APIServer
-func NewAPIServer(nodeRegistry *registry.NodeRegistry) *APIServer {
+func NewAPIServer(storage storage.Storage) *APIServer {
 	return &APIServer{
-		nodeRegistry: nodeRegistry,
+		nodeRegistry: registry.NewNodeRegistry(storage),
+		podRegistry:  registry.NewPodRegistry(storage),
 	}
 }
 
 // Start initializes and starts the API server
 func (s *APIServer) Start(address string) error {
 	container := restful.NewContainer()
-	s.registerNodeRoutes(container)
-
-	// TODO: Register routes for other types here
+	s.registerRoutes(container)
 
 	return http.ListenAndServe(address, container)
 }
 
-// registerNodeRoutes adds Node-related routes to the container
-func (s *APIServer) registerNodeRoutes(container *restful.Container) {
+// registerRoutes adds routes to the container
+func (s *APIServer) registerRoutes(container *restful.Container) {
 	ws := new(restful.WebService)
 	ws.Path("/api/v1").Consumes(restful.MIME_JSON).Produces(restful.MIME_JSON)
 
+	// Pod routes
+	ws.Route(ws.POST("/pods").To(s.createPod))
+	ws.Route(ws.GET("/pods").To(s.listPods))
+	ws.Route(ws.GET("/pods/{name}").To(s.getPod))
+	ws.Route(ws.PUT("/pods/{name}").To(s.updatePod))
+	ws.Route(ws.DELETE("/pods/{name}").To(s.deletePod))
+	ws.Route(ws.GET("/pods/unassigned").To(s.listUnassignedPods))
+
+	// Node routes
 	ws.Route(ws.POST("/nodes").To(s.createNode))
+	ws.Route(ws.GET("/nodes").To(s.listNodes))
 	ws.Route(ws.GET("/nodes/{name}").To(s.getNode))
 	ws.Route(ws.PUT("/nodes/{name}").To(s.updateNode))
 	ws.Route(ws.DELETE("/nodes/{name}").To(s.deleteNode))
-	ws.Route(ws.GET("/nodes").To(s.listNodes))
 
 	container.Add(ws)
 }
@@ -143,4 +154,93 @@ func (s *APIServer) listNodes(request *restful.Request, response *restful.Respon
 	}
 
 	writeResponse(response, http.StatusOK, nodes)
+}
+
+// createPod handles POST requests to create a new Pod
+func (s *APIServer) createPod(request *restful.Request, response *restful.Response) {
+	pod := new(api.Pod)
+	err := request.ReadEntity(pod)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, err)
+		return
+	}
+
+	err = s.podRegistry.CreatePod(request.Request.Context(), pod)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeResponse(response, http.StatusCreated, pod)
+}
+
+// listPods handles GET requests to list all Pods
+func (s *APIServer) listPods(request *restful.Request, response *restful.Response) {
+	pods, err := s.podRegistry.ListPods(request.Request.Context())
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeResponse(response, http.StatusOK, pods)
+}
+
+// getPod handles GET requests to retrieve a Pod
+func (s *APIServer) getPod(request *restful.Request, response *restful.Response) {
+	name := request.PathParameter("name")
+	pod, err := s.podRegistry.GetPod(request.Request.Context(), name)
+	if err != nil {
+		writeError(response, http.StatusNotFound, err)
+		return
+	}
+
+	writeResponse(response, http.StatusOK, pod)
+}
+
+// updatePod handles PUT requests to update a Pod
+func (s *APIServer) updatePod(request *restful.Request, response *restful.Response) {
+	name := request.PathParameter("name")
+	pod := new(api.Pod)
+	err := request.ReadEntity(pod)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, err)
+		return
+	}
+
+	if name != pod.Name {
+		writeError(response, http.StatusBadRequest,
+			fmt.Errorf("pod name in URL does not match the name in the request body"))
+		return
+	}
+
+	err = s.podRegistry.UpdatePod(request.Request.Context(), pod)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeResponse(response, http.StatusOK, pod)
+}
+
+// deletePod handles DELETE requests to remove a Pod
+func (s *APIServer) deletePod(request *restful.Request, response *restful.Response) {
+	name := request.PathParameter("name")
+	err := s.podRegistry.DeletePod(request.Request.Context(), name)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeResponse(response, http.StatusNoContent, nil)
+}
+
+// listUnassignedPods handles GET requests to list all unassigned Pods
+func (s *APIServer) listUnassignedPods(request *restful.Request, response *restful.Response) {
+	pods, err := s.podRegistry.ListUnassignedPods(request.Request.Context())
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeResponse(response, http.StatusOK, pods)
 }

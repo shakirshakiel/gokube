@@ -4,6 +4,21 @@ import (
 	"time"
 )
 
+type PodStatus string
+
+const (
+	PodStatusUnassigned PodStatus = "Unassigned"
+	PodStatusAssigned   PodStatus = "Assigned"
+	PodStatusRunning    PodStatus = "Running"
+)
+
+type Pod struct {
+	Name     string    `json:"name"`
+	NodeName string    `json:"nodeName,omitempty"`
+	Status   PodStatus `json:"status"`
+	// Add other fields as needed
+}
+
 // Node is a simplified representation of a Kubernetes Node
 type Node struct {
 	ObjectMeta `json:"metadata,omitempty"`
