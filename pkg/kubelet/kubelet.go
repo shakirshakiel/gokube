@@ -2,29 +2,42 @@ package kubelet
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"etcdtest/pkg/api"
+
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/client"
 )
 
 type Kubelet struct {
 	nodeName     string
 	apiServerURL string
+	dockerClient *client.Client
 	pods         map[string]*api.Pod
 }
 
-func NewKubelet(nodeName, apiServerURL string, port int) *Kubelet {
-	k := &Kubelet{
-		nodeName:     nodeName,
-		apiServerURL: apiServerURL,
-		pods:         make(map[string]*api.Pod),
+func NewKubelet(nodeName, apiServerURL string) (*Kubelet, error) {
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Docker client: %v", err)
 	}
 
-	return k
+	return &Kubelet{
+		nodeName:     nodeName,
+		apiServerURL: apiServerURL,
+		dockerClient: dockerClient,
+		pods:         make(map[string]*api.Pod),
+	}, nil
 }
 
 func (k *Kubelet) Start() error {
@@ -107,4 +120,39 @@ func (k *Kubelet) runPod(pod *api.Pod) {
 	// Simulate running a pod
 	log.Printf("Running pod: %s", pod.Name)
 	// In a real implementation, this would involve setting up containers, etc.
+}
+
+func (k *Kubelet) StartContainer(ctx context.Context, name, imageName string) error {
+
+	log.Printf("Pulling image: %s", imageName)
+
+	// Pull the image
+	out, err := k.dockerClient.ImagePull(ctx, "docker.io/library/nginx", image.PullOptions{})
+	if err != nil {
+		panic(err)
+	}
+	defer out.Close()
+	_, err = io.Copy(os.Stdout, out)
+	if err != nil {
+		return fmt.Errorf("failed to pull image %s: %v", imageName, err)
+	}
+
+	log.Printf("Successfully pulled image: %s", "nginx")
+
+	// Create the container
+	resp, err := k.dockerClient.ContainerCreate(ctx, &container.Config{
+		Image: "nginx",
+		// You can add more configuration options here as needed
+	}, nil, nil, nil, name)
+	if err != nil {
+		return fmt.Errorf("failed to create container %s: %v", name, err)
+	}
+
+	// Start the container
+	if err := k.dockerClient.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("failed to start container %s: %v", name, err)
+	}
+
+	fmt.Printf("Started container %s with ID %s\n", name, resp.ID)
+	return nil
 }
