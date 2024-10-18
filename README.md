@@ -120,11 +120,11 @@ This structure mimics Kubernetes' organization, providing a familiar layout for 
 
 The following features are planned for implementation:
 
-1. ~~Implement ReplicationController to create a specified number of replicas of created pods~~
-2. ~~Implement Scheduler to assign pods to nodes~~
-3. ~~Implement PodStatus update. Nodes should update pod status periodically with the apiserver~~
-4. ~~Update the ReplicationController to create newer instances of pods assigned to other nodes if a pod or node hosting the pods fails~~
-5. ~~Implement a Proxy service to load balance requests across pod instances~~
+1. [ ]Implement ReplicationController to create a specified number of replicas of created pods
+2. [ ]Implement Scheduler to assign pods to nodes
+3. [ ]Implement PodStatus update. Nodes should update pod status periodically with the apiserver
+4. [ ]Update the ReplicationController to create newer instances of pods assigned to other nodes if a pod or node hosting the pods fails
+5. [ ]Implement a Proxy service to load balance requests across pod instances
 
 
 ## Learning Objectives
