@@ -28,7 +28,7 @@ run: build
 
 deps:
 	$(GOGET) ./...
-	$(GOMOD) tidy
+	$(GOMOD) tidy 
 
 test-registry:
 	$(GOTEST) -v ./pkg/registry
@@ -40,10 +40,10 @@ lint:
 	golangci-lint run
 
 fmt:
-	gofmt -s -w .
+	gofmt -s -w . 
 
 vet:
-	go vet $(shell go list ./...)
+	go vet $(shell go list ./...) 
 
 # CI build target
 ci: deps fmt vet lint test build
