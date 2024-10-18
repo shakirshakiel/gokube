@@ -127,7 +127,7 @@ func (k *Kubelet) StartContainer(ctx context.Context, name, imageName string) er
 	log.Printf("Pulling image: %s", imageName)
 
 	// Pull the image
-	out, err := k.dockerClient.ImagePull(ctx, "docker.io/library/nginx", image.PullOptions{})
+	out, err := k.dockerClient.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
 		panic(err)
 	}

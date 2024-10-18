@@ -22,7 +22,7 @@ func TestStartContainerWithRealDocker(t *testing.T) {
 	// Ensure the container doesn't exist before we start
 	_ = dockerClient.ContainerRemove(ctx, containerName, container.RemoveOptions{Force: true})
 
-	kubelet, err := NewKubelet("test-node", "http://localhost:8000")
+	kubelet, err := NewKubelet("test-node", "http://fake-api-server-url")
 
 	if err != nil {
 		t.Fatalf("Failed to create Kubelet: %v", err)
