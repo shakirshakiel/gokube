@@ -25,7 +25,7 @@ By implementing a miniature version of Kubernetes, this project provides hands-o
 To build the Docker image for development and testing, run the following command from the root directory of this project:
 
 ```bash
-docker run --ulimit nofile=65536:65536 --privileged --rm -it -v $(pwd):/app gokube-builder:latest
+docker build --no-cache -t gokube-builder .
 ```
 ## Running the Development Environment
 
