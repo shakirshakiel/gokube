@@ -36,7 +36,9 @@ func TestPodRegistry_CreateAndUpdatePod(t *testing.T) {
 
 	// Test Create
 	pod := &api.Pod{
-		Name: "test-pod",
+		ObjectMeta: api.ObjectMeta{
+			Name: "test-pod",
+		},
 		Spec: api.PodSpec{
 			Containers: []api.Container{
 				{
@@ -67,7 +69,9 @@ func TestPodRegistry_CreateAndUpdatePod(t *testing.T) {
 
 	// Test Update
 	updatedPod := &api.Pod{
-		Name: "test-pod",
+		ObjectMeta: api.ObjectMeta{
+			Name: "test-pod",
+		},
 		Spec: api.PodSpec{
 			Containers: []api.Container{
 				{

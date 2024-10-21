@@ -22,10 +22,10 @@ type PodSpec struct {
 }
 
 type Pod struct {
-	Name     string    `json:"name"`
-	Spec     PodSpec   `json:"spec"`
-	NodeName string    `json:"nodeName,omitempty"`
-	Status   PodStatus `json:"status"`
+	ObjectMeta `json:"metadata,omitempty"`
+	Spec       PodSpec   `json:"spec"`
+	NodeName   string    `json:"nodeName,omitempty"`
+	Status     PodStatus `json:"status"`
 	// Add other fields as needed
 }
 

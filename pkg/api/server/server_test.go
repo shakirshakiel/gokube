@@ -113,3 +113,45 @@ func TestUpdateNodeStatus(t *testing.T) {
 	assert.Equal(t, updatedNode.Name, returnedNode.Name)
 	assert.Equal(t, updatedNode.Status, returnedNode.Status)
 }
+
+func TestCreatePod(t *testing.T) {
+	apiServer, _, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	pod := &api.Pod{
+		ObjectMeta: api.ObjectMeta{
+			Name: "test-pod",
+		},
+		Spec: api.PodSpec{
+			Replicas: 1,
+			Containers: []api.Container{
+				{
+					Image: "nginx:latest",
+				},
+			},
+		},
+		// Note: We don't set the Status field here, as it should be set by the server
+	}
+
+	body, _ := json.Marshal(pod)
+	req := httptest.NewRequest("POST", "/api/v1/pods", bytes.NewReader(body))
+	req.Header.Set("Content-Type", restful.MIME_JSON)
+	resp := httptest.NewRecorder()
+
+	container := restful.NewContainer()
+	apiServer.registerRoutes(container)
+	container.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusCreated, resp.Code)
+
+	var createdPod api.Pod
+	err := json.Unmarshal(resp.Body.Bytes(), &createdPod)
+	assert.NoError(t, err)
+	assert.Equal(t, pod.Name, createdPod.Name)
+	assert.Equal(t, pod.Spec.Replicas, createdPod.Spec.Replicas)
+	assert.Equal(t, len(pod.Spec.Containers), len(createdPod.Spec.Containers))
+	assert.Equal(t, pod.Spec.Containers[0].Image, createdPod.Spec.Containers[0].Image)
+
+	// Check that the status is set to Unassigned
+	assert.Equal(t, api.PodStatusUnassigned, createdPod.Status)
+}

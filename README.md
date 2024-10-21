@@ -124,7 +124,7 @@ The following features are planned for implementation:
 2. [ ]Implement Scheduler to assign pods to nodes
 3. [ ]Implement PodStatus update. Nodes should update pod status periodically with the apiserver
 4. [ ]Update the ReplicationController to create newer instances of pods assigned to other nodes if a pod or node hosting the pods fails
-5. [ ]Implement a Proxy service to load balance requests across pod instances
+5. [ ]Implement a Proxy service to load balance requests across pod instances~
 
 
 ## Learning Objectives
