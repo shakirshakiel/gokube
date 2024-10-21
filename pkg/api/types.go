@@ -60,3 +60,31 @@ const (
 	NodeMemoryPressure NodeStatus = "MemoryPressure"
 	NodeDiskPressure   NodeStatus = "DiskPressure"
 )
+
+// ReplicaSet represents the configuration of a ReplicaSet
+type ReplicaSet struct {
+	ObjectMeta `json:"metadata,omitempty"`
+	Spec       ReplicaSetSpec   `json:"spec"`
+	Status     ReplicaSetStatus `json:"status,omitempty"`
+}
+
+// ReplicaSetSpec is the specification of a ReplicaSet
+type ReplicaSetSpec struct {
+	Replicas int32             `json:"replicas"`
+	Selector map[string]string `json:"selector"`
+	Template PodTemplateSpec   `json:"template"`
+}
+
+// PodTemplateSpec describes the data a pod should have when created from a template
+type PodTemplateSpec struct {
+	ObjectMeta `json:"metadata,omitempty"`
+	Spec       PodSpec `json:"spec"`
+}
+
+// ReplicaSetStatus represents the current status of a ReplicaSet
+type ReplicaSetStatus struct {
+	Replicas             int32 `json:"replicas"`
+	FullyLabeledReplicas int32 `json:"fullyLabeledReplicas,omitempty"`
+	ReadyReplicas        int32 `json:"readyReplicas,omitempty"`
+	AvailableReplicas    int32 `json:"availableReplicas,omitempty"`
+}
