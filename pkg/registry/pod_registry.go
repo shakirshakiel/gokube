@@ -110,6 +110,22 @@ func (r *PodRegistry) ListUnassignedPods(ctx context.Context) ([]*api.Pod, error
 	return unassignedPods, nil
 }
 
+func (r *PodRegistry) ListPendingPods(ctx context.Context) ([]*api.Pod, error) {
+	allPods, err := r.ListPods(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var pendingPods []*api.Pod
+	for _, pod := range allPods {
+		if pod.Status == api.PodPending {
+			pendingPods = append(pendingPods, pod)
+		}
+	}
+
+	return pendingPods, nil
+}
+
 func validatePodSpec(spec api.PodSpec) error {
 	if len(spec.Containers) == 0 {
 		return fmt.Errorf("at least one container must be specified")

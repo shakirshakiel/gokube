@@ -11,5 +11,6 @@ type Storage interface {
 	Get(ctx context.Context, key string, obj runtime.Object) error
 	Update(ctx context.Context, key string, obj runtime.Object) error
 	Delete(ctx context.Context, key string) error
+	DeletePrefix(ctx context.Context, prefix string) error
 	List(ctx context.Context, prefix string, listObj interface{}) error
 }

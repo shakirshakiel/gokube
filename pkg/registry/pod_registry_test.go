@@ -28,7 +28,7 @@ func setupEtcdStorage() storage.Storage {
 	return etcdStorage
 }
 
-func TestPodRegistry_CreateAndUpdatePod(t *testing.T) {
+func TestCreateAndUpdatePod(t *testing.T) {
 	etcdStorage := setupEtcdStorage()
 	registry := NewPodRegistry(etcdStorage)
 
@@ -104,5 +104,88 @@ func TestPodRegistry_CreateAndUpdatePod(t *testing.T) {
 	err = registry.DeletePod(ctx, "test-pod")
 	if err != nil {
 		t.Fatalf("Failed to delete pod: %v", err)
+	}
+
+	// Test cases
+	testCases := []struct {
+		name            string
+		podsToCreate    []*api.Pod
+		expectedPending int
+	}{
+		{
+			name: "No pending pods",
+			podsToCreate: []*api.Pod{
+				{ObjectMeta: api.ObjectMeta{Name: "pod1"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodRunning},
+				{ObjectMeta: api.ObjectMeta{Name: "pod2"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodRunning},
+			},
+			expectedPending: 0,
+		},
+		{
+			name: "Some pending pods",
+			podsToCreate: []*api.Pod{
+				{ObjectMeta: api.ObjectMeta{Name: "pod3"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodPending},
+				{ObjectMeta: api.ObjectMeta{Name: "pod4"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodRunning},
+				{ObjectMeta: api.ObjectMeta{Name: "pod5"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodPending},
+			},
+			expectedPending: 2,
+		},
+		{
+			name: "All pending pods",
+			podsToCreate: []*api.Pod{
+				{ObjectMeta: api.ObjectMeta{Name: "pod6"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodPending},
+				{ObjectMeta: api.ObjectMeta{Name: "pod7"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodPending},
+			},
+			expectedPending: 2,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Clean up before each test
+			if err := etcdStorage.DeletePrefix(ctx, podPrefix); err != nil {
+				t.Fatalf("Failed to clean up Pods: %v", err)
+			}
+
+			// Create test pods
+			for _, pod := range tc.podsToCreate {
+				if err := registry.CreatePod(ctx, pod); err != nil {
+					t.Fatalf("Failed to create test pod: %v", err)
+				}
+			}
+
+			// Call ListPendingPods
+			pendingPods, err := registry.ListPendingPods(ctx)
+			if err != nil {
+				t.Fatalf("ListPendingPods failed: %v", err)
+			}
+
+			// Check the number of pending pods
+			if len(pendingPods) != tc.expectedPending {
+				t.Errorf("Expected %d pending pods, but got %d", tc.expectedPending, len(pendingPods))
+			}
+
+			// Check that all returned pods are actually pending
+			for _, pod := range pendingPods {
+				if pod.Status != api.PodPending {
+					t.Errorf("Pod %s is not pending, status: %s", pod.Name, pod.Status)
+				}
+			}
+		})
 	}
 }

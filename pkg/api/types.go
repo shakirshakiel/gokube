@@ -20,6 +20,9 @@ const (
 	// PodFailed means that all containers in the pod have terminated, and at least one container has
 	// terminated in a failure (exited with a non-zero exit code or was stopped by the system).
 	PodFailed PodStatus = "Failed"
+
+	//TODO: Kubernetes separates PodPhase and PodCondition. We have simplified to have a single pod status.
+	PodScheduled PodStatus = "Scheduled"
 )
 
 type Container struct {

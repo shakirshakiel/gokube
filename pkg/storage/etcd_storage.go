@@ -78,3 +78,11 @@ func (s *EtcdStorage) List(ctx context.Context, prefix string, listObj interface
 	listValue.Elem().Set(sliceValue)
 	return nil
 }
+
+func (s *EtcdStorage) DeletePrefix(ctx context.Context, prefix string) error {
+	_, err := s.client.Delete(ctx, prefix, clientv3.WithPrefix())
+	if err != nil {
+		return fmt.Errorf("failed to delete prefix %s: %v", prefix, err)
+	}
+	return nil
+}
