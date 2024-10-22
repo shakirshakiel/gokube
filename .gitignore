@@ -5,6 +5,7 @@
 *.so
 *.dylib
 
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -35,6 +36,7 @@ Thumbs.db
 
 # etcd data directory (if you're using embedded etcd)
 etcd-data/
-
+**/default.etcd/
+**/*.etcd
 # Any other project-specific directories or files you want to ignore
 # Add them here
