@@ -153,5 +153,5 @@ func TestCreatePod(t *testing.T) {
 	assert.Equal(t, pod.Spec.Containers[0].Image, createdPod.Spec.Containers[0].Image)
 
 	// Check that the status is set to Unassigned
-	assert.Equal(t, api.PodStatusUnassigned, createdPod.Status)
+	assert.Equal(t, api.PodPending, createdPod.Status)
 }

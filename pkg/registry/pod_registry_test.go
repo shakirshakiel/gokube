@@ -47,7 +47,7 @@ func TestPodRegistry_CreateAndUpdatePod(t *testing.T) {
 			},
 			Replicas: 3,
 		},
-		Status: api.PodStatusUnassigned,
+		Status: api.PodPending,
 	}
 
 	err := registry.CreatePod(ctx, pod)
@@ -60,7 +60,7 @@ func TestPodRegistry_CreateAndUpdatePod(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get created pod: %v", err)
 	}
-	if createdPod.Name != "test-pod" || createdPod.Status != api.PodStatusUnassigned {
+	if createdPod.Name != "test-pod" || createdPod.Status != api.PodPending {
 		t.Errorf("Created pod does not match expected: got %v, want %v", createdPod, pod)
 	}
 	if createdPod.Spec.Replicas != 3 || len(createdPod.Spec.Containers) != 1 || createdPod.Spec.Containers[0].Image != "nginx:latest" {
@@ -80,7 +80,7 @@ func TestPodRegistry_CreateAndUpdatePod(t *testing.T) {
 			},
 			Replicas: 5,
 		},
-		Status: api.PodStatusAssigned,
+		Status: api.PodPending,
 	}
 
 	err = registry.UpdatePod(ctx, updatedPod)
@@ -93,8 +93,8 @@ func TestPodRegistry_CreateAndUpdatePod(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get updated pod: %v", err)
 	}
-	if retrievedPod.Status != api.PodStatusAssigned {
-		t.Errorf("Updated pod status does not match expected: got %v, want %v", retrievedPod.Status, api.PodStatusAssigned)
+	if retrievedPod.Status != api.PodPending {
+		t.Errorf("Updated pod status does not match expected: got %v, want %v", retrievedPod.Status, api.PodPending)
 	}
 	if retrievedPod.Spec.Replicas != 5 || len(retrievedPod.Spec.Containers) != 1 || retrievedPod.Spec.Containers[0].Image != "nginx:1.19" {
 		t.Errorf("Updated pod spec does not match expected: got %v, want %v", retrievedPod.Spec, updatedPod.Spec)

@@ -34,7 +34,7 @@ func (r *PodRegistry) CreatePod(ctx context.Context, pod *api.Pod) error {
 	}
 
 	if pod.Status == "" {
-		pod.Status = api.PodStatusUnassigned
+		pod.Status = api.PodPending
 	}
 
 	// Validate Pod spec
@@ -102,7 +102,7 @@ func (r *PodRegistry) ListUnassignedPods(ctx context.Context) ([]*api.Pod, error
 
 	unassignedPods := make([]*api.Pod, 0)
 	for _, pod := range pods {
-		if pod.Status == api.PodStatusUnassigned {
+		if pod.Status == api.PodPending {
 			unassignedPods = append(unassignedPods, pod)
 		}
 	}
@@ -111,9 +111,6 @@ func (r *PodRegistry) ListUnassignedPods(ctx context.Context) ([]*api.Pod, error
 }
 
 func validatePodSpec(spec api.PodSpec) error {
-	if spec.Replicas < 1 {
-		return fmt.Errorf("replicas must be at least 1")
-	}
 	if len(spec.Containers) == 0 {
 		return fmt.Errorf("at least one container must be specified")
 	}
