@@ -39,6 +39,7 @@ func (s *APIServer) registerRoutes(container *restful.Container) {
 	ws := new(restful.WebService)
 	ws.Path("/api/v1").Consumes(restful.MIME_JSON).Produces(restful.MIME_JSON)
 
+	ws.Route(ws.GET("/healthz").To(s.healthz))
 	// Pod routes
 	ws.Route(ws.POST("/pods").To(s.createPod))
 	ws.Route(ws.GET("/pods").To(s.listPods))
@@ -55,6 +56,10 @@ func (s *APIServer) registerRoutes(container *restful.Container) {
 	ws.Route(ws.DELETE("/nodes/{name}").To(s.deleteNode))
 
 	container.Add(ws)
+}
+
+func (s *APIServer) healthz(request *restful.Request, response *restful.Response) {
+	writeResponse(response, http.StatusOK, nil)
 }
 
 // writeResponse is a helper function to write the response and log any errors

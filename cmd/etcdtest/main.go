@@ -10,11 +10,11 @@ import (
 func main() {
 	fmt.Println("Starting etcd test application")
 
-	etcdServer, dataDir, err := storage.StartEmbeddedEtcd()
+	etcdServer, _, err := storage.StartEmbeddedEtcd()
 	if err != nil {
 		log.Fatalf("Failed to start embedded etcd: %v", err)
 	}
-	defer storage.StopEmbeddedEtcd(etcdServer, dataDir)
+	defer storage.StopEmbeddedEtcd(etcdServer)
 
 	fmt.Println("Embedded etcd server is running")
 

@@ -6,6 +6,7 @@ import (
 	"etcdtest/pkg/storage"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -17,19 +18,20 @@ import (
 
 var rsRegistry *registry.ReplicaSetRegistry
 var podRegistry *registry.PodRegistry
-var etcdServer *embed.Etcd
 var rsController *ReplicaSetController
 var etcdClient *clientv3.Client
+var etcdServer *embed.Etcd
 
 func setup() {
 	var err error
-	etcdServer, err = startEmbeddedEtcd()
+	var port int
+	etcdServer, port, err = storage.StartEmbeddedEtcd()
 	if err != nil {
 		fmt.Printf("Failed to start etcd: %v\n", err)
 		os.Exit(1)
 	}
 	etcdClient, err = clientv3.New(clientv3.Config{
-		Endpoints:   []string{"http://localhost:2379"},
+		Endpoints:   []string{"http://localhost:" + strconv.Itoa(port)},
 		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {
@@ -43,46 +45,13 @@ func setup() {
 	rsController = NewReplicaSetController(rsRegistry, podRegistry)
 }
 
-func startEmbeddedEtcd() (*embed.Etcd, error) {
-	cfg := embed.NewConfig()
-	cfg.Dir = "default.etcd"
-	cfg.LogLevel = "error"
-	cfg.LogOutputs = []string{"stderr"}
-
-	e, err := embed.StartEtcd(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	select {
-	case <-e.Server.ReadyNotify():
-		fmt.Println("Embedded etcd is ready!")
-	case <-time.After(10 * time.Second):
-		e.Server.Stop() // trigger a shutdown
-		return nil, fmt.Errorf("server took too long to start")
-	}
-
-	return e, nil
-}
-
 func teardown() {
-	etcdServer.Close()
-	etcdClient.Close()
-	os.RemoveAll(etcdServer.Config().Dir)
+	storage.StopEmbeddedEtcd(etcdServer)
 }
 
 func TestReconcile(t *testing.T) {
 	setup()
 	defer teardown()
-	// Setup etcd client
-	etcdClient, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{"localhost:2379"},
-		DialTimeout: 5 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("Failed to create etcd client: %v", err)
-	}
-	defer etcdClient.Close()
 
 	// Create storage and registries
 	etcdStorage := storage.NewEtcdStorage(etcdClient)

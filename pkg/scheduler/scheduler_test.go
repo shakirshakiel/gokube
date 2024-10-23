@@ -6,18 +6,15 @@ import (
 	"etcdtest/pkg/registry"
 	"etcdtest/pkg/storage"
 	"fmt"
-	"net"
-	"net/url"
 	"testing"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/server/v3/embed"
 )
 
 func TestScheduler_SchedulePendingPods(t *testing.T) {
 	// Start embedded etcd
-	etcdServer, port, err := startEmbeddedEtcd()
+	etcdServer, port, err := storage.StartEmbeddedEtcd()
 	if err != nil {
 		t.Fatalf("Failed to start embedded etcd: %v", err)
 	}
@@ -146,53 +143,4 @@ func TestScheduler_SchedulePendingPods(t *testing.T) {
 			}
 		})
 	}
-}
-
-func startEmbeddedEtcd() (*embed.Etcd, int, error) {
-	cfg := embed.NewConfig()
-	cfg.Dir = "default.etcd"
-
-	// Use a random available port
-	err, port := pickAvailableRandomPort()
-	if err != nil {
-		return nil, 0, err
-	}
-
-	cfg.ListenPeerUrls = []url.URL{{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", port)}}
-
-	err, port = pickAvailableRandomPort()
-	if err != nil {
-		return nil, port, err
-	}
-	cfg.ListenClientUrls = []url.URL{{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", port)}}
-
-	cfg.Logger = "zap"
-	cfg.LogOutputs = []string{"stderr"}
-
-	e, err := embed.StartEtcd(cfg)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	select {
-	case <-e.Server.ReadyNotify():
-		fmt.Printf("Embedded etcd is ready on port %d!\n", port)
-	case <-time.After(10 * time.Second):
-		e.Server.Stop() // trigger a shutdown
-		return nil, 0, fmt.Errorf("server took too long to start")
-	}
-
-	return e, port, nil
-}
-
-func pickAvailableRandomPort() (error, int) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return err, 0
-	}
-	port, err := ln.Addr().(*net.TCPAddr).Port, ln.Close()
-	if err != nil {
-		return err, 0
-	}
-	return err, port
 }

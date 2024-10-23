@@ -4,22 +4,11 @@ import (
 	"context"
 	"etcdtest/pkg/api"
 	"etcdtest/pkg/storage"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-var etcdStorage storage.Storage = nil
-var setupOnce sync.Once
-
-func setupTest() {
-	setupOnce.Do(func() {
-		etcdStorage = setupEtcdStorage()
-	})
-	ctx = context.Background()
-}
 
 func createTestReplicaSet(name string, replicas int32, image string) *api.ReplicaSet {
 	return &api.ReplicaSet{
@@ -43,7 +32,9 @@ func createTestReplicaSet(name string, replicas int32, image string) *api.Replic
 }
 
 func TestReplicaSetRegistry_Create(t *testing.T) {
-	setupTest()
+	ctx := context.Background()
+	etcdStorage, etcdServer := setupEtcdStorage()
+	defer storage.StopEmbeddedEtcd(etcdServer)
 
 	rs := createTestReplicaSet("test-replicaset", 3, "nginx:latest")
 	registry := NewReplicaSetRegistry(etcdStorage)
@@ -60,7 +51,10 @@ func TestReplicaSetRegistry_Create(t *testing.T) {
 }
 
 func TestReplicaSetRegistry_Update(t *testing.T) {
-	setupTest()
+	ctx := context.Background()
+
+	etcdStorage, etcdServer := setupEtcdStorage()
+	defer storage.StopEmbeddedEtcd(etcdServer)
 
 	rs := createTestReplicaSet("test-replicaset", 3, "nginx:latest")
 	registry := NewReplicaSetRegistry(etcdStorage)
@@ -80,7 +74,11 @@ func TestReplicaSetRegistry_Update(t *testing.T) {
 }
 
 func TestReplicaSetRegistry_List(t *testing.T) {
-	setupTest()
+	ctx := context.Background()
+
+	etcdStorage, etcdServer := setupEtcdStorage()
+	defer storage.StopEmbeddedEtcd(etcdServer)
+
 	registry := NewReplicaSetRegistry(etcdStorage)
 	rs1 := createTestReplicaSet("test-replicaset-1", 3, "nginx:latest")
 	rs2 := createTestReplicaSet("test-replicaset-2", 2, "nginx:1.19")
@@ -97,7 +95,11 @@ func TestReplicaSetRegistry_List(t *testing.T) {
 }
 
 func TestReplicaSetRegistry_Delete(t *testing.T) {
-	setupTest()
+	ctx := context.Background()
+
+	etcdStorage, etcdServer := setupEtcdStorage()
+	defer storage.StopEmbeddedEtcd(etcdServer)
+
 	registry := NewReplicaSetRegistry(etcdStorage)
 	rs := createTestReplicaSet("test-replicaset", 3, "nginx:latest")
 	require.NoError(t, registry.Create(ctx, rs))
@@ -110,7 +112,11 @@ func TestReplicaSetRegistry_Delete(t *testing.T) {
 }
 
 func TestReplicaSetRegistry_GetNonExistent(t *testing.T) {
-	setupTest()
+	ctx := context.Background()
+
+	etcdStorage, etcdServer := setupEtcdStorage()
+	defer storage.StopEmbeddedEtcd(etcdServer)
+
 	registry := NewReplicaSetRegistry(etcdStorage)
 	_, err := registry.Get(ctx, "non-existent-replicaset")
 	assert.Error(t, err, "Expected error when getting non-existent ReplicaSet")

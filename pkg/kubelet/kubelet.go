@@ -67,7 +67,7 @@ func (k *Kubelet) registerNode() error {
 		return fmt.Errorf("failed to marshal node data: %w", err)
 	}
 
-	resp, err := http.Post(k.apiServerURL+"/api/v1/nodes", "application/json", bytes.NewBuffer(jsonData))
+	resp, err := http.Post("http://"+k.apiServerURL+"/api/v1/nodes", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to send request to API server: %w", err)
 	}

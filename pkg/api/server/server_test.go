@@ -17,16 +17,25 @@ import (
 	"etcdtest/pkg/storage"
 )
 
+func getClientEndpoints(e *embed.Etcd) []string {
+	clientURLs := e.Config().ListenClientUrls
+	endpoints := make([]string, len(clientURLs))
+	for i, url := range clientURLs {
+		endpoints[i] = url.String()
+	}
+	return endpoints
+}
+
 func setupTestEnvironment(t *testing.T) (*APIServer, *embed.Etcd, func()) {
 	// Start embedded etcd using util.StartEtcdServer
-	e, dataDir, err := storage.StartEmbeddedEtcd()
+	e, _, err := storage.StartEmbeddedEtcd()
 	if err != nil {
 		t.Fatalf("Failed to start etcd: %v", err)
 	}
 
 	// Create etcd client
 	client, err := clientv3.New(clientv3.Config{
-		Endpoints: []string{e.Config().AdvertiseClientUrls[0].String()},
+		Endpoints: getClientEndpoints(e),
 	})
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
@@ -38,7 +47,7 @@ func setupTestEnvironment(t *testing.T) (*APIServer, *embed.Etcd, func()) {
 
 	cleanup := func() {
 		client.Close()
-		storage.StopEmbeddedEtcd(e, dataDir)
+		storage.StopEmbeddedEtcd(e)
 	}
 
 	return apiServer, e, cleanup

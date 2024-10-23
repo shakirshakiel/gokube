@@ -3,24 +3,26 @@ package storage
 import (
 	"context"
 	"fmt"
-	clientv3 "go.etcd.io/etcd/client/v3"
+	"strconv"
 	"testing"
 	"time"
+
+	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"go.etcd.io/etcd/api/v3/mvccpb"
 )
 
 func TestEmbeddedEtcd(t *testing.T) {
 	// Step 1: Start embedded etcd
-	etcdServer, dataDir, err := StartEmbeddedEtcd()
+	etcdServer, port, err := StartEmbeddedEtcd()
 	if err != nil {
 		t.Fatalf("Failed to start embedded etcd: %v", err)
 	}
-	defer StopEmbeddedEtcd(etcdServer, dataDir)
+	defer StopEmbeddedEtcd(etcdServer)
 
 	// Step 2: Set up etcd client
 	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{"http://localhost:2379"},
+		Endpoints:   []string{"http://localhost:" + strconv.Itoa(port)},
 		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {

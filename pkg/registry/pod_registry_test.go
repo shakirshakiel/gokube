@@ -3,7 +3,9 @@ package registry
 import (
 	"context"
 	"fmt"
+	"go.etcd.io/etcd/server/v3/embed"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,9 +15,16 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-func setupEtcdStorage() storage.Storage {
+func setupEtcdStorage() (storage.Storage, *embed.Etcd) {
+	etcdServer, port, err := storage.StartEmbeddedEtcd()
+	if err != nil {
+		fmt.Printf("Failed to start etcd: %v\n", err)
+		os.Exit(1)
+	}
+
 	etcdClient, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{"http://localhost:2379"},
+		//TODO: Factor out this in a separate utility which gives client when
+		Endpoints:   []string{"http://localhost:" + strconv.Itoa(port)},
 		DialTimeout: 5 * time.Second,
 	})
 
@@ -25,11 +34,14 @@ func setupEtcdStorage() storage.Storage {
 	}
 
 	etcdStorage := storage.NewEtcdStorage(etcdClient)
-	return etcdStorage
+	return etcdStorage, etcdServer
 }
 
 func TestCreateAndUpdatePod(t *testing.T) {
-	etcdStorage := setupEtcdStorage()
+	etcdStorage, etcdServer := setupEtcdStorage()
+
+	defer storage.StopEmbeddedEtcd(etcdServer)
+
 	registry := NewPodRegistry(etcdStorage)
 
 	ctx := context.Background()
