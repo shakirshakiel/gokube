@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"etcdtest/pkg/api"
 	"etcdtest/pkg/api/server"
+	"etcdtest/pkg/controller"
 	"etcdtest/pkg/kubelet"
 	"etcdtest/pkg/registry"
+	"etcdtest/pkg/scheduler"
 	"etcdtest/pkg/storage"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +32,8 @@ type TestCluster struct {
 }
 
 func setupTestCluster(t *testing.T) *TestCluster {
+	ctx := context.Background()
+
 	// Start embedded etcd
 	etcdServer, _, err := storage.StartEmbeddedEtcd()
 	if err != nil {
@@ -46,9 +51,7 @@ func setupTestCluster(t *testing.T) *TestCluster {
 
 	// Create storage and registries
 	etcdStorage := storage.NewEtcdStorage(etcdClient)
-
 	replicaSetRegistry := registry.NewReplicaSetRegistry(etcdStorage)
-
 	// Create API server
 	apiServer := server.NewAPIServer(etcdStorage)
 
@@ -71,6 +74,12 @@ func setupTestCluster(t *testing.T) *TestCluster {
 		t.Fatalf("API server failed to start: %v", err)
 	}
 	t.Log("API Server started at:", serverURL)
+
+	cntr := controller.NewReplicaSetController(replicaSetRegistry, registry.NewPodRegistry(etcdStorage))
+	go cntr.Start(ctx)
+
+	schdlr := scheduler.NewScheduler(registry.NewPodRegistry(etcdStorage), registry.NewNodeRegistry(etcdStorage), 1*time.Second)
+	go schdlr.Start(ctx)
 
 	kubelets, err := startKubelets(serverURL, 3, t)
 	if err != nil {
@@ -173,5 +182,90 @@ func TestGokubeEndToEnd(t *testing.T) {
 	cluster := setupTestCluster(t)
 	defer cluster.Cleanup()
 
-	// Our end-to-end test logic will go here
+	// Define a ReplicaSet using the type from your project
+	rs := &api.ReplicaSet{
+		ObjectMeta: api.ObjectMeta{
+			Name: "example-replicaset",
+		},
+		Spec: api.ReplicaSetSpec{
+			Replicas: 3,
+			Selector: map[string]string{
+				"app": "example-app",
+			},
+			Template: api.PodTemplateSpec{
+				ObjectMeta: api.ObjectMeta{
+					Name: "example-pod",
+				},
+				Spec: api.PodSpec{
+					Containers: []api.Container{
+						{
+							Name:  "nginx",
+							Image: "nginx:latest",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Store the ReplicaSet in the registry
+	err := cluster.ReplicaSetRegistry.Create(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Failed to create ReplicaSet: %v", err)
+	}
+
+	t.Log("ReplicaSet created successfully")
+
+	// Wait for the pods to be created
+	err = waitForPods(cluster.APIServerURL, rs.Spec.Replicas)
+	if err != nil {
+		t.Fatalf("Failed to verify pod creation: %v", err)
+	}
+
+	t.Log("Verified that 3 pods are created for the ReplicaSet")
+
+}
+
+func waitForPods(apiServerURL string, expectedCount int32) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for pods to be created")
+		default:
+			resp, err := http.Get("http://" + apiServerURL + "/api/v1/pods")
+			if err != nil {
+				return fmt.Errorf("failed to list pods: %v", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+			}
+
+			var podList []api.Pod
+			if err := json.NewDecoder(resp.Body).Decode(&podList); err != nil {
+				return fmt.Errorf("failed to decode pod list: %v", err)
+			}
+
+			matchingPods := 0
+			for _, pod := range podList {
+				if matchesSelector(pod) {
+					matchingPods++
+				}
+			}
+
+			if matchingPods == int(expectedCount) {
+				return nil
+			}
+
+			time.Sleep(1 * time.Second)
+		}
+	}
+}
+
+func matchesSelector(pod api.Pod) bool {
+	return strings.Contains(pod.Name, "example-replicaset")
 }

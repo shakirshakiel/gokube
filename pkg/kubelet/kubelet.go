@@ -109,7 +109,7 @@ func (k *Kubelet) runNewPods(pods []*api.Pod) error {
 }
 
 func (k *Kubelet) getPodAssignments() ([]*api.Pod, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/api/v1/pods?nodeName=%s", k.apiServerURL, k.nodeName))
+	resp, err := http.Get(fmt.Sprintf("%s/api/v1/pods?nodeName=%s", "http://"+k.apiServerURL, k.nodeName))
 	if err != nil {
 		return nil, err
 	}
