@@ -220,3 +220,90 @@ func (k *Kubelet) ListContainers(ctx context.Context) ([]ContainerStatus, error)
 
 	return statuses, nil
 }
+
+func (k *Kubelet) getPodStatus(ctx context.Context, pod *api.Pod) (api.PodStatus, error) {
+	var containerStates []containerState
+	for _, container := range pod.Spec.Containers {
+		state, err := k.getContainerState(ctx, container.Name)
+		if err != nil {
+			return api.PodRunning, fmt.Errorf("failed to get state for container %s: %w", container.Name, err)
+		}
+		containerStates = append(containerStates, state)
+	}
+
+	return determinePodStatus(containerStates), nil
+}
+
+type containerState struct {
+	exists   bool
+	running  bool
+	exitCode int
+}
+
+func (k *Kubelet) getContainerState(ctx context.Context, containerName string) (containerState, error) {
+	containerInfo, err := k.dockerClient.ContainerInspect(ctx, containerName)
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			return containerState{exists: false}, nil
+		}
+		return containerState{}, err
+	}
+
+	return containerState{
+		exists:   true,
+		running:  containerInfo.State.Running,
+		exitCode: containerInfo.State.ExitCode,
+	}, nil
+}
+
+func determinePodStatus(states []containerState) api.PodStatus {
+	if anyContainerRunning(states) {
+		return api.PodRunning
+	}
+
+	if allContainersFailed(states) && anyContainerExists(states) {
+		return api.PodFailed
+	}
+
+	if allContainersSucceeded(states) {
+		return api.PodSucceeded
+	}
+
+	return api.PodScheduled
+}
+
+func allContainersSucceeded(states []containerState) bool {
+	for _, state := range states {
+		if state.exitCode != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func anyContainerRunning(states []containerState) bool {
+	for _, state := range states {
+		if state.running {
+			return true
+		}
+	}
+	return false
+}
+
+func allContainersFailed(states []containerState) bool {
+	for _, state := range states {
+		if state.exists && state.exitCode == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func anyContainerExists(states []containerState) bool {
+	for _, state := range states {
+		if state.exists {
+			return true
+		}
+	}
+	return false
+}

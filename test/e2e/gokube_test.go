@@ -159,7 +159,7 @@ func (tc *TestCluster) Cleanup() {
 
 func waitForAPIServer(url string) error {
 	for i := 0; i < 30; i++ {
-		resp, err := http.Get("http://" + url + "/api/v1//healthz")
+		resp, err := http.Get("http://" + url + "/api/v1/healthz")
 		if err == nil && resp.StatusCode == http.StatusOK {
 
 			return nil

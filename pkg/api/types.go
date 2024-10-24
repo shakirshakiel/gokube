@@ -26,7 +26,7 @@ const (
 )
 
 type Container struct {
-	Name  string `json:"name,omitempty"`
+	Name  string `json:"name"`
 	Image string `json:"image"`
 }
 
