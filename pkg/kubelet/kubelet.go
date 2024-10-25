@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"etcdtest/pkg/registry/names"
 	"fmt"
+	"github.com/emicklei/go-restful/v3"
 	"io"
 	"log"
 	"net/http"
@@ -50,6 +52,9 @@ func (k *Kubelet) Start() error {
 
 	// Start watching for pod assignments
 	go k.watchPods()
+
+	// Start updating pod statuses
+	go k.updatePodStatuses()
 
 	return nil
 }
@@ -156,12 +161,14 @@ func (k *Kubelet) StartContainer(ctx context.Context, pod *api.Pod, containerNam
 		"gokube.pod.namespace":  pod.Namespace,
 		"gokube.container.name": containerName,
 	}
+
+	uniqueContainerName := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-%s", pod.Name, containerName))
 	// Create the container
 	resp, err := k.dockerClient.ContainerCreate(ctx, &container.Config{
 		Image:  imageName,
 		Labels: labels,
 		// You can add more configuration options here as needed
-	}, nil, nil, nil, containerName)
+	}, nil, nil, nil, uniqueContainerName)
 	if err != nil {
 		return fmt.Errorf("failed to create container %s: %v", containerName, err)
 	}
@@ -306,4 +313,80 @@ func anyContainerExists(states []containerState) bool {
 		}
 	}
 	return false
+}
+
+func (k *Kubelet) CleanupContainers(ctx context.Context) error {
+	containers, err := k.dockerClient.ContainerList(ctx, container.ListOptions{All: true})
+	if err != nil {
+		return fmt.Errorf("error listing containers for cleanup: %v", err)
+	}
+
+	for _, c := range containers {
+		if podName, ok := c.Labels["gokube.pod.name"]; ok {
+			if pod, exists := k.pods[podName]; exists && pod.NodeName == k.nodeName {
+				err := k.dockerClient.ContainerRemove(ctx, c.ID, container.RemoveOptions{Force: true})
+				if err != nil {
+					log.Printf("Error removing container %s: %v", c.ID, err)
+				} else {
+					log.Printf("Removed container %s for pod %s", c.ID, podName)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (k *Kubelet) updatePodStatuses() {
+	ticker := time.NewTicker(10 * time.Second) // Check every 10 seconds
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			for _, pod := range k.pods {
+				status, err := k.getPodStatus(context.Background(), pod)
+				if err != nil {
+					log.Printf("Error getting status for pod %s: %v", pod.Name, err)
+					continue
+				}
+
+				if pod.Status != status {
+					pod.Status = status
+					if err := k.updatePodStatus(pod); err != nil {
+						log.Printf("Error updating status for pod %s: %v", pod.Name, err)
+					}
+				}
+			}
+		}
+	}
+}
+
+func (k *Kubelet) updatePodStatus(pod *api.Pod) error {
+	url := fmt.Sprintf("http://%s/api/v1/pods/%s", k.apiServerURL, pod.Name)
+
+	jsonData, err := json.Marshal(pod)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pod data: %w", err)
+	}
+
+	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", restful.MIME_JSON)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request to API server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to update pod status, status code: %d", resp.StatusCode)
+	}
+
+	log.Printf("Updated pod status for %s: %v", pod.Name, pod.Status)
+
+	return nil
 }

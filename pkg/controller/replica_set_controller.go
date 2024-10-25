@@ -66,14 +66,19 @@ func (rsc *ReplicaSetController) Reconcile(ctx context.Context, rs *api.ReplicaS
 			}
 		}
 		currentPodCount = desiredPodCount //
+		// Update ReplicaSet status
+		currentRS.Status.Replicas = int32(currentPodCount)
+		return rsc.replicaSetRegistry.Update(ctx, currentRS)
+
 	} else if currentPodCount > desiredPodCount {
 		// TODO: Implement pod deletion logic if needed
 		currentPodCount = desiredPodCount
+		// Update ReplicaSet status
+		currentRS.Status.Replicas = int32(currentPodCount)
+		return rsc.replicaSetRegistry.Update(ctx, currentRS)
 	}
 
-	// Update ReplicaSet status
-	currentRS.Status.Replicas = int32(currentPodCount)
-	return rsc.replicaSetRegistry.Update(ctx, currentRS)
+	return nil
 }
 
 // GeneratePodNameFromReplicaSet creates a pod name based on the ReplicaSet and container names
@@ -135,7 +140,8 @@ func (rsc *ReplicaSetController) Run(ctx context.Context) error {
 }
 
 func isActive(pod *api.Pod) bool {
-	return pod.Status != api.PodSucceeded && pod.Status != api.PodFailed
+	//return pod.Status != api.PodSucceeded && pod.Status != api.PodFailed
+	return pod.Status != api.PodFailed //even succeeded pods should be considered active? or else controller keeps on creating pods
 }
 
 func isOwnedBy(pod *api.Pod, rs *api.ReplicaSet) bool {

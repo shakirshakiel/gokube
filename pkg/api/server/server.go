@@ -262,9 +262,6 @@ func (s *APIServer) listUnassignedPods(request *restful.Request, response *restf
 }
 
 func validatePodSpec(spec api.PodSpec) error {
-	if spec.Replicas < 1 {
-		return fmt.Errorf("replicas must be at least 1")
-	}
 	if len(spec.Containers) == 0 {
 		return fmt.Errorf("at least one container must be specified")
 	}

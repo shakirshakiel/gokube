@@ -11,6 +11,7 @@ import (
 	"etcdtest/pkg/scheduler"
 	"etcdtest/pkg/storage"
 	"fmt"
+	"google.golang.org/appengine/log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,6 +21,60 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
 )
+
+func TestGokubeEndToEnd(t *testing.T) {
+	cluster := setupTestCluster(t)
+	defer cluster.Cleanup()
+
+	rs, err := createReplicaSet(t, cluster)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Wait for the pods to be created
+	err = waitForPodCreation(cluster.APIServerURL, rs.Spec.Replicas)
+	if err != nil {
+		t.Fatalf("Failed to verify pod creation: %v", err)
+	}
+	t.Log("Verified that 3 pods are created for the ReplicaSet")
+	verifyPodsRunning(t, cluster.APIServerURL, rs.Spec.Selector, rs.Spec.Replicas)
+}
+
+func createReplicaSet(t *testing.T, cluster *TestCluster) (*api.ReplicaSet, error) {
+	// Define a ReplicaSet using the type from your project
+	rs := &api.ReplicaSet{
+		ObjectMeta: api.ObjectMeta{
+			Name: "example-replicaset",
+		},
+		Spec: api.ReplicaSetSpec{
+			Replicas: 3,
+			Selector: map[string]string{
+				"app": "example-app",
+			},
+			Template: api.PodTemplateSpec{
+				ObjectMeta: api.ObjectMeta{
+					Name: "example-pod",
+				},
+				Spec: api.PodSpec{
+					Containers: []api.Container{
+						{
+							Name:  "nginx",
+							Image: "nginx:latest",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Store the ReplicaSet in the registry
+	err := cluster.ReplicaSetRegistry.Create(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Failed to create ReplicaSet: %v", err)
+	}
+
+	t.Log("ReplicaSet created successfully")
+	return rs, err
+}
 
 type TestCluster struct {
 	EtcdServer         *embed.Etcd
@@ -62,7 +117,7 @@ func setupTestCluster(t *testing.T) *TestCluster {
 	}
 
 	serverURL := "localhost:" + strconv.Itoa(port)
-	//TODO: Is this the idiomatic way to start the API server?
+	//TODO: Is this the idiomatic way to handle errors in goroutines?
 	go func() {
 		err := apiServer.Start(serverURL)
 		if err != nil {
@@ -162,8 +217,10 @@ func waitForKubeletRegistration(apiServerURL string, expectedCount int) error {
 }
 
 func (tc *TestCluster) Cleanup() {
+	tc.cleanupContainers() //stop etcd after cleanup as cleanup depends on etcd to load metadata about replicasets.
 	tc.EtcdClient.Close()
 	storage.StopEmbeddedEtcd(tc.EtcdServer)
+
 }
 
 func waitForAPIServer(url string) error {
@@ -178,55 +235,7 @@ func waitForAPIServer(url string) error {
 	return fmt.Errorf("API server did not become ready in time")
 }
 
-func TestGokubeEndToEnd(t *testing.T) {
-	cluster := setupTestCluster(t)
-	defer cluster.Cleanup()
-
-	// Define a ReplicaSet using the type from your project
-	rs := &api.ReplicaSet{
-		ObjectMeta: api.ObjectMeta{
-			Name: "example-replicaset",
-		},
-		Spec: api.ReplicaSetSpec{
-			Replicas: 3,
-			Selector: map[string]string{
-				"app": "example-app",
-			},
-			Template: api.PodTemplateSpec{
-				ObjectMeta: api.ObjectMeta{
-					Name: "example-pod",
-				},
-				Spec: api.PodSpec{
-					Containers: []api.Container{
-						{
-							Name:  "nginx",
-							Image: "nginx:latest",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	// Store the ReplicaSet in the registry
-	err := cluster.ReplicaSetRegistry.Create(context.Background(), rs)
-	if err != nil {
-		t.Fatalf("Failed to create ReplicaSet: %v", err)
-	}
-
-	t.Log("ReplicaSet created successfully")
-
-	// Wait for the pods to be created
-	err = waitForPods(cluster.APIServerURL, rs.Spec.Replicas)
-	if err != nil {
-		t.Fatalf("Failed to verify pod creation: %v", err)
-	}
-
-	t.Log("Verified that 3 pods are created for the ReplicaSet")
-
-}
-
-func waitForPods(apiServerURL string, expectedCount int32) error {
+func waitForPodCreation(apiServerURL string, expectedCount int32) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -268,4 +277,71 @@ func waitForPods(apiServerURL string, expectedCount int32) error {
 
 func matchesSelector(pod api.Pod) bool {
 	return strings.Contains(pod.Name, "example-replicaset")
+}
+
+func verifyPodsRunning(t *testing.T, apiServerURL string, selector map[string]string, expectedCount int32) {
+	err := waitForPodsRunning(apiServerURL, selector, expectedCount)
+	if err != nil {
+		t.Fatalf("Failed to verify pods running: %v", err)
+	}
+	t.Logf("Verified that %d pods are running for the ReplicaSet", expectedCount)
+}
+
+func waitForPodsRunning(apiServerURL string, selector map[string]string, expectedCount int32) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for pods to be running")
+		default:
+			pods, err := listPods(apiServerURL)
+			if err != nil {
+				return fmt.Errorf("failed to list pods: %v", err)
+			}
+
+			runningCount := 0
+			for _, pod := range pods {
+				if matchesSelector(pod) && (pod.Status == api.PodRunning || pod.Status == api.PodSucceeded) {
+					runningCount++
+				}
+			}
+
+			if runningCount == int(expectedCount) {
+				return nil
+			}
+
+			time.Sleep(5 * time.Second)
+		}
+	}
+}
+
+func (testCluster *TestCluster) cleanupContainers() {
+	kubelets := testCluster.Kubelets
+	for _, kubelet := range kubelets {
+		err := kubelet.CleanupContainers(context.Background())
+		if err != nil {
+			log.Errorf(context.Background(), "Unable to clean containers for %s", kubelet.GetNodeName())
+		}
+	}
+}
+
+func listPods(apiServerURL string) ([]api.Pod, error) {
+	resp, err := http.Get("http://" + apiServerURL + "/api/v1/pods")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var podList []api.Pod
+	if err := json.NewDecoder(resp.Body).Decode(&podList); err != nil {
+		return nil, fmt.Errorf("failed to decode pod list: %v", err)
+	}
+
+	return podList, nil
 }

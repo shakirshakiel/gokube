@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -163,4 +166,90 @@ func TestCreatePod(t *testing.T) {
 
 	// Check that the status is set to Unassigned
 	assert.Equal(t, api.PodPending, createdPod.Status)
+}
+
+func TestUpdatePod(t *testing.T) {
+	apiserver, _, cleanup := setupTestEnvironment(t)
+
+	defer cleanup()
+
+	go func() {
+		err := apiserver.Start("localhost:8080")
+		if err != nil {
+			log.Fatalf("Failed to start API server: %v", err)
+		}
+	}()
+
+	// Setup
+	pod := &api.Pod{
+		ObjectMeta: api.ObjectMeta{
+			Name: "test-pod",
+		},
+		Spec: api.PodSpec{
+			Replicas: 1,
+			Containers: []api.Container{
+				{
+					Image: "nginx:latest",
+				},
+			},
+		},
+		// Note: We don't set the Status field here, as it should be set by the server
+	}
+
+	body, _ := json.Marshal(pod)
+	req, _ := http.NewRequest("POST", "http://localhost:8080/api/v1/pods", bytes.NewReader(body))
+	req.Header.Set("Content-Type", restful.MIME_JSON)
+
+	resp, err := http.DefaultClient.Do(req)
+	assert.NoError(t, err)
+
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	var createdPod api.Pod
+	body, _ = io.ReadAll(resp.Body)
+	err = json.Unmarshal(body, &createdPod)
+	assert.NoError(t, err)
+	assert.Equal(t, pod.Name, createdPod.Name)
+	assert.Equal(t, pod.Spec.Replicas, createdPod.Spec.Replicas)
+	assert.Equal(t, len(pod.Spec.Containers), len(createdPod.Spec.Containers))
+	assert.Equal(t, pod.Spec.Containers[0].Image, createdPod.Spec.Containers[0].Image)
+
+	// Check that the status is set to Unassigned
+	assert.Equal(t, api.PodPending, createdPod.Status)
+
+	// Update the pod status
+	pod.Status = api.PodRunning
+
+	err = updatePodStatus("localhost:8080", pod)
+	assert.NoError(t, err)
+
+}
+
+func updatePodStatus(apiServerURL string, pod *api.Pod) error {
+	url := fmt.Sprintf("http://%s/api/v1/pods/%s/", apiServerURL, pod.Name)
+
+	jsonData, err := json.Marshal(pod)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pod data: %w", err)
+	}
+
+	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", restful.MIME_JSON)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request to API server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to update pod status, status code: %d", resp.StatusCode)
+	}
+
+	log.Printf("Updated pod status for %s: %v", pod.Name, pod.Status)
+
+	return nil
 }
