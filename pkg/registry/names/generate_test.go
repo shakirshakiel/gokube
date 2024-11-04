@@ -19,11 +19,13 @@ package names
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSimpleNameGenerator(t *testing.T) {
 	name := SimpleNameGenerator.GenerateName("foo")
-	if !strings.HasPrefix(name, "foo") || name == "foo" {
-		t.Errorf("unexpected name: %s", name)
-	}
+
+	assert.True(t, strings.HasPrefix(name, "foo"))
+	assert.NotEqual(t, "foo", name)
 }

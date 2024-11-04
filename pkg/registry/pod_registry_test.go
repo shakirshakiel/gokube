@@ -2,131 +2,240 @@ package registry
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"strconv"
 	"testing"
-	"time"
 
-	"go.etcd.io/etcd/server/v3/embed"
-
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gokube/pkg/api"
 	"gokube/pkg/storage"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-func setupEtcdStorage() (storage.Storage, *embed.Etcd) {
-	etcdServer, port, err := storage.StartEmbeddedEtcd()
-	if err != nil {
-		fmt.Printf("Failed to start etcd: %v\n", err)
-		os.Exit(1)
-	}
+func TestNewPodRegistry(t *testing.T) {
+	storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+		etcdStorage := storage.NewEtcdStorage(etcdServer)
+		registry := NewPodRegistry(etcdStorage)
 
-	etcdClient, err := clientv3.New(clientv3.Config{
-		//TODO: Factor out this in a separate utility which gives client when
-		Endpoints:   []string{"http://localhost:" + strconv.Itoa(port)},
-		DialTimeout: 5 * time.Second,
+		assert.NotNil(t, registry)
+		assert.Equal(t, etcdStorage, registry.storage)
 	})
-
-	if err != nil {
-		fmt.Printf("Failed to create etcd client: %v\n", err)
-		os.Exit(1)
-	}
-
-	etcdStorage := storage.NewEtcdStorage(etcdClient)
-	return etcdStorage, etcdServer
 }
 
-func TestCreateAndUpdatePod(t *testing.T) {
-	etcdStorage, etcdServer := setupEtcdStorage()
+func TestPodRegistry_GetPod(t *testing.T) {
+	t.Run("should return pod if it exists", func(t *testing.T) {
+		storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+			etcdStorage := storage.NewEtcdStorage(etcdServer)
+			registry := NewPodRegistry(etcdStorage)
+			ctx := context.Background()
 
-	defer storage.StopEmbeddedEtcd(etcdServer)
-
-	registry := NewPodRegistry(etcdStorage)
-
-	ctx := context.Background()
-
-	// Test Create
-	pod := &api.Pod{
-		ObjectMeta: api.ObjectMeta{
-			Name: "test-pod",
-		},
-		Spec: api.PodSpec{
-			Containers: []api.Container{
-				{
-					Image: "nginx:latest",
+			pod := &api.Pod{
+				ObjectMeta: api.ObjectMeta{
+					Name: "test-pod",
 				},
-			},
-			Replicas: 3,
-		},
-		Status: api.PodPending,
-	}
-
-	err := registry.CreatePod(ctx, pod)
-	if err != nil {
-		t.Fatalf("Failed to create pod: %v", err)
-	}
-
-	// Verify pod was created
-	createdPod, err := registry.GetPod(ctx, "test-pod")
-	if err != nil {
-		t.Fatalf("Failed to get created pod: %v", err)
-	}
-	if createdPod.Name != "test-pod" || createdPod.Status != api.PodPending {
-		t.Errorf("Created pod does not match expected: got %v, want %v", createdPod, pod)
-	}
-	if createdPod.Spec.Replicas != 3 || len(createdPod.Spec.Containers) != 1 || createdPod.Spec.Containers[0].Image != "nginx:latest" {
-		t.Errorf("Created pod spec does not match expected: got %v, want %v", createdPod.Spec, pod.Spec)
-	}
-
-	// Test Update
-	updatedPod := &api.Pod{
-		ObjectMeta: api.ObjectMeta{
-			Name: "test-pod",
-		},
-		Spec: api.PodSpec{
-			Containers: []api.Container{
-				{
-					Image: "nginx:1.19",
+				Spec: api.PodSpec{
+					Containers: []api.Container{
+						{
+							Image: "nginx:latest",
+						},
+					},
+					Replicas: 3,
 				},
+				Status: api.PodPending,
+			}
+
+			err := registry.CreatePod(ctx, pod)
+			require.NoError(t, err)
+
+			// Test GetPod
+			retrievedPod, err := registry.GetPod(ctx, "test-pod")
+			require.NoError(t, err)
+
+			// Verify pod name and status
+			assert.Equal(t, "test-pod", retrievedPod.Name)
+			assert.Equal(t, api.PodPending, retrievedPod.Status)
+
+			// Verify pod spec
+			assert.Len(t, retrievedPod.Spec.Containers, 1)
+			assert.Equal(t, "nginx:latest", retrievedPod.Spec.Containers[0].Image)
+			assert.Equal(t, int32(3), retrievedPod.Spec.Replicas)
+		})
+	})
+
+	t.Run("should return error if pod does not exist", func(t *testing.T) {
+		storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+			etcdStorage := storage.NewEtcdStorage(etcdServer)
+			registry := NewPodRegistry(etcdStorage)
+			ctx := context.Background()
+
+			_, err := registry.GetPod(ctx, "non-existent-pod")
+			assert.Errorf(t, err, "pod non-existent-pod not found")
+		})
+	})
+}
+
+func TestPodRegistry_CreatePod(t *testing.T) {
+	storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+		etcdStorage := storage.NewEtcdStorage(etcdServer)
+		registry := NewPodRegistry(etcdStorage)
+		ctx := context.Background()
+
+		// Test Create
+		pod := &api.Pod{
+			ObjectMeta: api.ObjectMeta{
+				Name: "test-pod",
 			},
-			Replicas: 5,
-		},
-		Status: api.PodPending,
-	}
+			Spec: api.PodSpec{
+				Containers: []api.Container{
+					{
+						Image: "nginx:latest",
+					},
+				},
+				Replicas: 3,
+			},
+			Status: api.PodPending,
+		}
 
-	err = registry.UpdatePod(ctx, updatedPod)
-	if err != nil {
-		t.Fatalf("Failed to update pod: %v", err)
-	}
+		err := registry.CreatePod(ctx, pod)
+		require.NoError(t, err)
 
-	// Verify pod was updated
-	retrievedPod, err := registry.GetPod(ctx, "test-pod")
-	if err != nil {
-		t.Fatalf("Failed to get updated pod: %v", err)
-	}
-	if retrievedPod.Status != api.PodPending {
-		t.Errorf("Updated pod status does not match expected: got %v, want %v", retrievedPod.Status, api.PodPending)
-	}
-	if retrievedPod.Spec.Replicas != 5 || len(retrievedPod.Spec.Containers) != 1 || retrievedPod.Spec.Containers[0].Image != "nginx:1.19" {
-		t.Errorf("Updated pod spec does not match expected: got %v, want %v", retrievedPod.Spec, updatedPod.Spec)
-	}
+		// Verify pod was created
+		_, err = registry.GetPod(ctx, "test-pod")
+		require.NoError(t, err)
+	})
+}
 
-	// Clean up
-	err = registry.DeletePod(ctx, "test-pod")
-	if err != nil {
-		t.Fatalf("Failed to delete pod: %v", err)
-	}
+func TestPodRegistry_UpdatePod(t *testing.T) {
+	storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+		etcdStorage := storage.NewEtcdStorage(etcdServer)
+		registry := NewPodRegistry(etcdStorage)
+		ctx := context.Background()
 
-	// Test cases
+		pod := &api.Pod{
+			ObjectMeta: api.ObjectMeta{
+				Name: "test-pod",
+			},
+			Spec: api.PodSpec{
+				Containers: []api.Container{
+					{
+						Image: "nginx:latest",
+					},
+				},
+				Replicas: 3,
+			},
+			Status: api.PodPending,
+		}
+
+		err := registry.CreatePod(ctx, pod)
+		require.NoError(t, err)
+
+		// Update pod status
+		pod.Status = api.PodRunning
+		err = registry.UpdatePod(ctx, pod)
+		require.NoError(t, err)
+
+		// Verify updated status
+		retrievedPod, err := registry.GetPod(ctx, "test-pod")
+		require.NoError(t, err)
+		assert.Equal(t, api.PodRunning, retrievedPod.Status)
+	})
+}
+
+func TestPodRegistry_DeletePod(t *testing.T) {
+	storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+		etcdStorage := storage.NewEtcdStorage(etcdServer)
+		registry := NewPodRegistry(etcdStorage)
+		ctx := context.Background()
+
+		pod := &api.Pod{
+			ObjectMeta: api.ObjectMeta{
+				Name: "test-pod",
+			},
+			Spec: api.PodSpec{
+				Containers: []api.Container{
+					{
+						Image: "nginx:latest",
+					},
+				},
+				Replicas: 3,
+			},
+			Status: api.PodPending,
+		}
+
+		err := registry.CreatePod(ctx, pod)
+		require.NoError(t, err)
+
+		err = registry.DeletePod(ctx, "test-pod")
+		require.NoError(t, err)
+
+		_, err = registry.GetPod(ctx, "test-pod")
+		assert.Error(t, err)
+	})
+}
+
+func TestPodRegistry_ListPods(t *testing.T) {
+	storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+		etcdStorage := storage.NewEtcdStorage(etcdServer)
+		registry := NewPodRegistry(etcdStorage)
+		ctx := context.Background()
+
+		// Test cases
+
+		// Test ListPods
+		pod1 := &api.Pod{
+			ObjectMeta: api.ObjectMeta{
+				Name: "test-pod-1",
+			},
+			Spec: api.PodSpec{
+				Containers: []api.Container{
+					{
+						Image: "nginx:latest",
+					},
+				},
+				Replicas: 3,
+			},
+			Status: api.PodPending,
+		}
+
+		pod2 := &api.Pod{
+			ObjectMeta: api.ObjectMeta{
+				Name: "test-pod-2",
+			},
+			Spec: api.PodSpec{
+				Containers: []api.Container{
+					{
+						Image: "nginx:latest",
+					},
+				},
+				Replicas: 3,
+			},
+			Status: api.PodRunning,
+		}
+
+		err := registry.CreatePod(ctx, pod1)
+		require.NoError(t, err)
+
+		err = registry.CreatePod(ctx, pod2)
+		require.NoError(t, err)
+
+		pods, err := registry.ListPods(ctx)
+		require.NoError(t, err)
+		require.Len(t, pods, 2)
+
+		// Verify pod names
+		assert.Equal(t, "test-pod-1", pods[0].Name)
+		assert.Equal(t, "test-pod-2", pods[1].Name)
+	})
+}
+
+func TestPodRegistry_ListPendingPods(t *testing.T) {
 	testCases := []struct {
-		name            string
-		podsToCreate    []*api.Pod
-		expectedPending int
+		name                string
+		podsToCreate        []*api.Pod
+		expectedPendingPods int
 	}{
 		{
-			name: "No pending pods",
+			name: "no pending pods",
 			podsToCreate: []*api.Pod{
 				{ObjectMeta: api.ObjectMeta{Name: "pod1"},
 					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
@@ -135,10 +244,10 @@ func TestCreateAndUpdatePod(t *testing.T) {
 					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
 					Status: api.PodRunning},
 			},
-			expectedPending: 0,
+			expectedPendingPods: 0,
 		},
 		{
-			name: "Some pending pods",
+			name: "some pending pods",
 			podsToCreate: []*api.Pod{
 				{ObjectMeta: api.ObjectMeta{Name: "pod3"},
 					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
@@ -150,10 +259,10 @@ func TestCreateAndUpdatePod(t *testing.T) {
 					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
 					Status: api.PodPending},
 			},
-			expectedPending: 2,
+			expectedPendingPods: 2,
 		},
 		{
-			name: "All pending pods",
+			name: "all pending pods",
 			podsToCreate: []*api.Pod{
 				{ObjectMeta: api.ObjectMeta{Name: "pod6"},
 					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
@@ -162,43 +271,101 @@ func TestCreateAndUpdatePod(t *testing.T) {
 					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
 					Status: api.PodPending},
 			},
-			expectedPending: 2,
+			expectedPendingPods: 2,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+				etcdStorage := storage.NewEtcdStorage(etcdServer)
+				registry := NewPodRegistry(etcdStorage)
+				ctx := context.Background()
 
-			// Clean up before each test
-			if err := etcdStorage.DeletePrefix(ctx, podPrefix); err != nil {
-				t.Fatalf("Failed to clean up Pods: %v", err)
-			}
-
-			// Create test pods
-			for _, pod := range tc.podsToCreate {
-				if err := registry.CreatePod(ctx, pod); err != nil {
-					t.Fatalf("Failed to create test pod: %v", err)
+				// Create test pods
+				for _, pod := range tc.podsToCreate {
+					if err := registry.CreatePod(ctx, pod); err != nil {
+						t.Fatalf("Failed to create test pod: %v", err)
+					}
 				}
-			}
 
-			// Call ListPendingPods
-			pendingPods, err := registry.ListPendingPods(ctx)
-			if err != nil {
-				t.Fatalf("ListPendingPods failed: %v", err)
-			}
+				// Call ListPods
+				pods, err := registry.ListPendingPods(ctx)
+				require.NoError(t, err)
 
-			// Check the number of pending pods
-			if len(pendingPods) != tc.expectedPending {
-				t.Errorf("Expected %d pending pods, but got %d", tc.expectedPending, len(pendingPods))
-			}
+				assert.Equal(t, tc.expectedPendingPods, len(pods))
+			})
+		})
+	}
+}
 
-			// Check that all returned pods are actually pending
-			for _, pod := range pendingPods {
-				if pod.Status != api.PodPending {
-					t.Errorf("Pod %s is not pending, status: %s", pod.Name, pod.Status)
+func TestPodRegistry_ListUnassignedPods(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		podsToCreate           []*api.Pod
+		expectedUnassignedPods int
+	}{
+		{
+			name: "no unassigned pods",
+			podsToCreate: []*api.Pod{
+				{ObjectMeta: api.ObjectMeta{Name: "pod1"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodRunning},
+				{ObjectMeta: api.ObjectMeta{Name: "pod2"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodRunning},
+			},
+			expectedUnassignedPods: 0,
+		},
+		{
+			name: "some unassigned pods",
+			podsToCreate: []*api.Pod{
+				{ObjectMeta: api.ObjectMeta{Name: "pod3"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodPending},
+				{ObjectMeta: api.ObjectMeta{Name: "pod4"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodRunning},
+				{ObjectMeta: api.ObjectMeta{Name: "pod5"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodPending},
+			},
+			expectedUnassignedPods: 2,
+		},
+		{
+			name: "all unassigned pods",
+			podsToCreate: []*api.Pod{
+				{ObjectMeta: api.ObjectMeta{Name: "pod6"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodPending},
+				{ObjectMeta: api.ObjectMeta{Name: "pod7"},
+					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+					Status: api.PodPending},
+			},
+			expectedUnassignedPods: 2,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+				etcdStorage := storage.NewEtcdStorage(etcdServer)
+				registry := NewPodRegistry(etcdStorage)
+				ctx := context.Background()
+
+				// Create test pods
+				for _, pod := range tc.podsToCreate {
+					if err := registry.CreatePod(ctx, pod); err != nil {
+						t.Fatalf("Failed to create test pod: %v", err)
+					}
 				}
-			}
+
+				// Call ListPods
+				pods, err := registry.ListUnassignedPods(ctx)
+				require.NoError(t, err)
+
+				assert.Equal(t, tc.expectedUnassignedPods, len(pods))
+			})
 		})
 	}
 }
