@@ -36,6 +36,7 @@ func TestPodRegistry_GetPod(t *testing.T) {
 				Spec: api.PodSpec{
 					Containers: []api.Container{
 						{
+							Name:  "test-container",
 							Image: "nginx:latest",
 						},
 					},
@@ -88,6 +89,7 @@ func TestPodRegistry_CreatePod(t *testing.T) {
 			Spec: api.PodSpec{
 				Containers: []api.Container{
 					{
+						Name:  "test-container",
 						Image: "nginx:latest",
 					},
 				},
@@ -118,6 +120,7 @@ func TestPodRegistry_UpdatePod(t *testing.T) {
 			Spec: api.PodSpec{
 				Containers: []api.Container{
 					{
+						Name:  "test-container",
 						Image: "nginx:latest",
 					},
 				},
@@ -154,6 +157,7 @@ func TestPodRegistry_DeletePod(t *testing.T) {
 			Spec: api.PodSpec{
 				Containers: []api.Container{
 					{
+						Name:  "test-container",
 						Image: "nginx:latest",
 					},
 				},
@@ -189,6 +193,7 @@ func TestPodRegistry_ListPods(t *testing.T) {
 			Spec: api.PodSpec{
 				Containers: []api.Container{
 					{
+						Name:  "test-container-1",
 						Image: "nginx:latest",
 					},
 				},
@@ -204,6 +209,7 @@ func TestPodRegistry_ListPods(t *testing.T) {
 			Spec: api.PodSpec{
 				Containers: []api.Container{
 					{
+						Name:  "test-container-2",
 						Image: "nginx:latest",
 					},
 				},

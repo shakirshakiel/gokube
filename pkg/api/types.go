@@ -1,7 +1,10 @@
 package api
 
 import (
+	"errors"
 	"time"
+
+	"github.com/go-playground/validator/v10"
 )
 
 type PodStatus string
@@ -28,22 +31,33 @@ const (
 	PodScheduled PodStatus = "Scheduled"
 )
 
+var (
+	ErrInvalidPodSpec = errors.New("invalid pod spec")
+)
+
+var validate = validator.New()
+
 type Container struct {
-	Name  string `json:"name"`
-	Image string `json:"image"`
+	Name  string `json:"name" validate:"required"`
+	Image string `json:"image" validate:"required"`
 }
 
 type PodSpec struct {
-	Containers []Container `json:"containers"`
-	Replicas   int32       `json:"replicas"`
+	Containers []Container `json:"containers" validate:"required,dive,required"`
+	Replicas   int32       `json:"replicas" validate:"gte=0"`
 }
 
 type Pod struct {
 	ObjectMeta `json:"metadata,omitempty"`
-	Spec       PodSpec   `json:"spec"`
+	Spec       PodSpec   `json:"spec" validate:"required"`
 	NodeName   string    `json:"nodeName,omitempty"`
-	Status     PodStatus `json:"status"`
+	Status     PodStatus `json:"status" validate:"required"`
 	// Add other fields as needed
+}
+
+// Validate validates the PodSpec of the Pod.
+func (p *Pod) Validate() error {
+	return validate.Struct(p)
 }
 
 // Node is a simplified representation of a Kubernetes Node

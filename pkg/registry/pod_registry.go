@@ -38,7 +38,7 @@ func (r *PodRegistry) CreatePod(ctx context.Context, pod *api.Pod) error {
 	}
 
 	// Validate Pod spec
-	if err := validatePodSpec(pod.Spec); err != nil {
+	if err := pod.Validate(); err != nil {
 		return fmt.Errorf("invalid pod spec: %w", err)
 	}
 
@@ -66,7 +66,7 @@ func (r *PodRegistry) UpdatePod(ctx context.Context, pod *api.Pod) error {
 	key := podPrefix + pod.Name
 
 	// Validate Pod spec
-	if err := validatePodSpec(pod.Spec); err != nil {
+	if err := pod.Validate(); err != nil {
 		return fmt.Errorf("invalid pod spec: %w", err)
 	}
 
@@ -124,16 +124,4 @@ func (r *PodRegistry) ListPendingPods(ctx context.Context) ([]*api.Pod, error) {
 	}
 
 	return pendingPods, nil
-}
-
-func validatePodSpec(spec api.PodSpec) error {
-	if len(spec.Containers) == 0 {
-		return fmt.Errorf("at least one container must be specified")
-	}
-	for _, container := range spec.Containers {
-		if container.Image == "" {
-			return fmt.Errorf("container image must not be empty")
-		}
-	}
-	return nil
 }
