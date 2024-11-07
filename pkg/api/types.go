@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -57,7 +58,12 @@ type Pod struct {
 
 // Validate validates the PodSpec of the Pod.
 func (p *Pod) Validate() error {
-	return validate.Struct(p)
+	err := validate.Struct(p)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidPodSpec, err)
+	}
+
+	return nil
 }
 
 // Node is a simplified representation of a Kubernetes Node

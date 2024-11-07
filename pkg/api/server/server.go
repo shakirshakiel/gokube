@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -170,14 +171,12 @@ func (s *APIServer) createPod(request *restful.Request, response *restful.Respon
 		return
 	}
 
-	// Validate Pod spec
-	if err := validatePodSpec(pod.Spec); err != nil {
-		writeError(response, http.StatusBadRequest, fmt.Errorf("invalid pod spec: %w", err))
-		return
-	}
-
 	err = s.podRegistry.CreatePod(request.Request.Context(), pod)
-	if err != nil {
+	switch {
+	case errors.Is(err, registry.ErrPodInvalid):
+		writeError(response, http.StatusBadRequest, err)
+		return
+	case err != nil:
 		writeError(response, http.StatusInternalServerError, err)
 		return
 	}
@@ -223,14 +222,12 @@ func (s *APIServer) updatePod(request *restful.Request, response *restful.Respon
 		return
 	}
 
-	// Validate Pod spec
-	if err := validatePodSpec(pod.Spec); err != nil {
-		writeError(response, http.StatusBadRequest, fmt.Errorf("invalid pod spec: %w", err))
-		return
-	}
-
 	err = s.podRegistry.UpdatePod(request.Request.Context(), pod)
-	if err != nil {
+	switch {
+	case errors.Is(err, registry.ErrPodInvalid):
+		writeError(response, http.StatusBadRequest, err)
+		return
+	case err != nil:
 		writeError(response, http.StatusInternalServerError, err)
 		return
 	}
@@ -259,16 +256,4 @@ func (s *APIServer) listUnassignedPods(request *restful.Request, response *restf
 	}
 
 	writeResponse(response, http.StatusOK, pods)
-}
-
-func validatePodSpec(spec api.PodSpec) error {
-	if len(spec.Containers) == 0 {
-		return fmt.Errorf("at least one container must be specified")
-	}
-	for _, container := range spec.Containers {
-		if container.Image == "" {
-			return fmt.Errorf("container image must not be empty")
-		}
-	}
-	return nil
 }

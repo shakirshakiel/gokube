@@ -11,11 +11,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"gokube/pkg/api"
+	"gokube/pkg/storage"
+
 	"github.com/emicklei/go-restful/v3"
 	"github.com/stretchr/testify/assert"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"gokube/pkg/api"
-	"gokube/pkg/storage"
 )
 
 func TestCreateNode(t *testing.T) {
@@ -105,6 +106,7 @@ func TestCreatePod(t *testing.T) {
 				Replicas: 1,
 				Containers: []api.Container{
 					{
+						Name:  "nginx",
 						Image: "nginx:latest",
 					},
 				},
