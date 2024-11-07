@@ -24,8 +24,61 @@ import (
 )
 
 func TestSimpleNameGenerator(t *testing.T) {
-	name := SimpleNameGenerator.GenerateName("foo")
+	t.Run("GeneratesNameWithPrefix", func(t *testing.T) {
+		name := SimpleNameGenerator.GenerateName("foo")
 
-	assert.True(t, strings.HasPrefix(name, "foo"))
-	assert.NotEqual(t, "foo", name)
+		assert.True(t, strings.HasPrefix(name, "foo"))
+		assert.NotEqual(t, "foo", name)
+	})
+
+	t.Run("GeneratesNameWithMaxLength", func(t *testing.T) {
+		base := strings.Repeat("a", MaxGeneratedNameLength)
+
+		name := SimpleNameGenerator.GenerateName(base)
+
+		assert.True(t, strings.HasPrefix(name, base))
+		assert.NotEqual(t, base, name)
+		assert.LessOrEqual(t, len(name), maxNameLength)
+	})
+
+	t.Run("TrimsBaseNameIfTooLong", func(t *testing.T) {
+		base := strings.Repeat("a", maxNameLength)
+
+		name := SimpleNameGenerator.GenerateName(base)
+
+		assert.True(t, strings.HasPrefix(name, base[:MaxGeneratedNameLength]))
+		assert.NotEqual(t, base[:MaxGeneratedNameLength], name)
+		assert.LessOrEqual(t, len(name), maxNameLength)
+	})
+}
+
+func TestString(t *testing.T) {
+	t.Run("GeneratesStringOfCorrectLength", func(t *testing.T) {
+		length := 10
+
+		str := String(length)
+
+		assert.Equal(t, length, len(str))
+	})
+
+	t.Run("GeneratesAlphanumericStringWithoutVowels", func(t *testing.T) {
+		length := 10
+
+		str := String(length)
+
+		for _, char := range str {
+			assert.Contains(t, alphanums, string(char))
+		}
+	})
+
+	t.Run("HandlesRemainingZeroCondition", func(t *testing.T) {
+		length := maxAlphanumsPerInt + 1 // Ensure we hit the remaining == 0 condition
+
+		str := String(length)
+
+		assert.Equal(t, length, len(str))
+		for _, char := range str {
+			assert.Contains(t, alphanums, string(char))
+		}
+	})
 }
