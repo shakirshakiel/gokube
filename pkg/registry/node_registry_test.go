@@ -2,12 +2,15 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/mock/gomock"
 
+	mockStorage "gokube/mocks/pkg/storage"
 	"gokube/pkg/api"
 	"gokube/pkg/storage"
 )
@@ -21,14 +24,36 @@ func TestNewNodeRegistry(t *testing.T) {
 }
 
 func TestNodeRegistry_CreateNode(t *testing.T) {
-	storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
-		etcdStorage := storage.NewEtcdStorage(etcdServer)
-		nodeRegistry := NewNodeRegistry(etcdStorage)
-		node := createTestNode("test-node-1", "123")
+	t.Run("should create node", func(t *testing.T) {
+		storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+			etcdStorage := storage.NewEtcdStorage(etcdServer)
+			nodeRegistry := NewNodeRegistry(etcdStorage)
+			node := createTestNode("test-node-1", "123")
 
-		err := nodeRegistry.CreateNode(context.Background(), node)
+			err := nodeRegistry.CreateNode(context.Background(), node)
+			assert.NoError(t, err)
 
-		assert.NoError(t, err)
+			// Verify node was created
+			retrievedNode, err := nodeRegistry.GetNode(context.Background(), "test-node-1")
+			require.NoError(t, err)
+			assert.Equal(t, "test-node-1", retrievedNode.Name)
+			assert.Equal(t, "123", retrievedNode.UID)
+		})
+	})
+
+	t.Run("should fail to create node with the same name", func(t *testing.T) {
+		storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+			etcdStorage := storage.NewEtcdStorage(etcdServer)
+			nodeRegistry := NewNodeRegistry(etcdStorage)
+			node := createTestNode("duplicate-node", "123")
+
+			err := nodeRegistry.CreateNode(context.Background(), node)
+			require.NoError(t, err)
+
+			// Attempt to create another node with the same name
+			err = nodeRegistry.CreateNode(context.Background(), node)
+			assert.ErrorIs(t, err, ErrNodeAlreadyExists)
+		})
 	})
 }
 
@@ -84,23 +109,41 @@ func TestNodeRegistry_UpdateNode(t *testing.T) {
 }
 
 func TestNodeRegistry_ListNodes(t *testing.T) {
-	storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
-		etcdStorage := storage.NewEtcdStorage(etcdServer)
-		nodeRegistry := NewNodeRegistry(etcdStorage)
+	t.Run("should list nodes", func(t *testing.T) {
+		storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+			etcdStorage := storage.NewEtcdStorage(etcdServer)
+			nodeRegistry := NewNodeRegistry(etcdStorage)
+			ctx := context.Background()
+
+			// Clear existing nodes
+			clearNodes(t, nodeRegistry)
+
+			// Create test nodes
+			createTestNodeInRegistry(t, nodeRegistry, "test-node-4", "101")
+			createTestNodeInRegistry(t, nodeRegistry, "test-node-5", "102")
+
+			nodes, err := nodeRegistry.ListNodes(ctx)
+			assert.NoError(t, err)
+			assert.Len(t, nodes, 2)
+			assert.Contains(t, []string{nodes[0].Name, nodes[1].Name}, "test-node-4")
+			assert.Contains(t, []string{nodes[0].Name, nodes[1].Name}, "test-node-5")
+		})
+	})
+
+	t.Run("should handle error returned by the storage provider", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mStorage := mockStorage.NewMockStorage(ctrl)
+		nodeRegistry := NewNodeRegistry(mStorage)
 		ctx := context.Background()
 
-		// Clear existing nodes
-		clearNodes(t, nodeRegistry)
-
-		// Create test nodes
-		createTestNodeInRegistry(t, nodeRegistry, "test-node-4", "101")
-		createTestNodeInRegistry(t, nodeRegistry, "test-node-5", "102")
+		mStorage.EXPECT().List(ctx, nodePrefix, gomock.Any()).Return(errors.New("failed to list nodes"))
 
 		nodes, err := nodeRegistry.ListNodes(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, nodes, 2)
-		assert.Contains(t, []string{nodes[0].Name, nodes[1].Name}, "test-node-4")
-		assert.Contains(t, []string{nodes[0].Name, nodes[1].Name}, "test-node-5")
+
+		assert.ErrorIs(t, err, ErrListNodesFailed, "Expected error when listing nodes")
+		assert.Nil(t, nodes, "Expected nil list of nodes")
 	})
 }
 
