@@ -9,7 +9,7 @@ BINARY_NAME=etcdtest
 MAIN_PATH=./cmd/etcdtest
 
 # Make parameters
-.PHONY: all build test clean run deps ci
+.PHONY: all build test clean run deps ci install-mockgen mockgen
 
 all: test build
 
@@ -49,3 +49,12 @@ vet:
 # CI build target
 ci: deps fmt vet lint test build
 	@echo "CI build completed successfully"
+
+mockgen: install-mockgen
+	go generate ./...
+
+install-mockgen:
+	@if ! [ -x "$$(command -v mockgen)" ]; then \
+		echo "mockgen not found, installing..."; \
+		$(GOCMD) install go.uber.org/mock/mockgen@latest; \
+	fi

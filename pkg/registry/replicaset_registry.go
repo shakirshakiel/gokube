@@ -2,11 +2,22 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
 	"gokube/pkg/api"
 	"gokube/pkg/storage"
+)
+
+const (
+	replicaSetPrefix = "/replicasets"
+)
+
+var (
+	ErrReplicaSetExists   = errors.New("replicaset already exists")
+	ErrReplicaSetNotFound = errors.New("replicaset not found")
+	ErrListReplicaSets    = errors.New("error listing replicasets")
 )
 
 type ReplicaSetRegistry struct {
@@ -20,17 +31,21 @@ func NewReplicaSetRegistry(storage storage.Storage) *ReplicaSetRegistry {
 	}
 }
 
+func (r *ReplicaSetRegistry) generateKey(name string) string {
+	return fmt.Sprintf("%s/%s", replicaSetPrefix, name)
+}
+
 func (r *ReplicaSetRegistry) Create(ctx context.Context, rs *api.ReplicaSet) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	key := fmt.Sprintf("/replicasets/%s", rs.Name)
+	key := r.generateKey(rs.Name)
 
 	// Check if ReplicaSet already exists
 	existingRS := &api.ReplicaSet{}
 	err := r.storage.Get(ctx, key, existingRS)
 	if err == nil {
-		return fmt.Errorf("replicaset %s already exists", rs.Name)
+		return fmt.Errorf("%w: %s", ErrReplicaSetExists, rs.Name)
 	}
 
 	// Store the ReplicaSet
@@ -41,11 +56,11 @@ func (r *ReplicaSetRegistry) Get(ctx context.Context, name string) (*api.Replica
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	key := fmt.Sprintf("/replicasets/%s", name)
+	key := r.generateKey(name)
 	rs := &api.ReplicaSet{}
 	err := r.storage.Get(ctx, key, rs)
 	if err != nil {
-		return nil, fmt.Errorf("replicaset %s not found: %v", name, err)
+		return nil, fmt.Errorf("%w: %s", ErrReplicaSetNotFound, name)
 	}
 
 	return rs, nil
@@ -55,13 +70,13 @@ func (r *ReplicaSetRegistry) Update(ctx context.Context, rs *api.ReplicaSet) err
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	key := fmt.Sprintf("/replicasets/%s", rs.Name)
+	key := r.generateKey(rs.Name)
 
 	// Check if ReplicaSet exists
 	existingRS := &api.ReplicaSet{}
 	err := r.storage.Get(ctx, key, existingRS)
 	if err != nil {
-		return fmt.Errorf("replicaset %s not found: %v", rs.Name, err)
+		return fmt.Errorf("%w: %s", ErrReplicaSetNotFound, rs.Name)
 	}
 
 	// Update the ReplicaSet
@@ -72,7 +87,7 @@ func (r *ReplicaSetRegistry) Delete(ctx context.Context, name string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	key := fmt.Sprintf("/replicasets/%s", name)
+	key := r.generateKey(name)
 	return r.storage.Delete(ctx, key)
 }
 
@@ -80,12 +95,11 @@ func (r *ReplicaSetRegistry) List(ctx context.Context) ([]*api.ReplicaSet, error
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	prefix := "/replicasets/"
 	var replicaSets []*api.ReplicaSet
 
-	err := r.storage.List(ctx, prefix, &replicaSets)
+	err := r.storage.List(ctx, replicaSetPrefix, &replicaSets)
 	if err != nil {
-		return nil, fmt.Errorf("error listing replicasets: %v", err)
+		return nil, fmt.Errorf("%w", ErrListReplicaSets)
 	}
 
 	return replicaSets, nil
