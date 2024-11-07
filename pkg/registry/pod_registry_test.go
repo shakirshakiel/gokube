@@ -2,13 +2,16 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	mockStorage "gokube/mocks/pkg/storage"
 	"gokube/pkg/api"
 	"gokube/pkg/storage"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -197,7 +200,7 @@ func TestPodRegistry_CreatePod(t *testing.T) {
 			}
 
 			err := registry.CreatePod(ctx, pod)
-			assert.ErrorAs(t, err, &api.ErrInvalidPodSpec)
+			assert.ErrorIs(t, err, ErrPodInvalid)
 		})
 	})
 }
@@ -266,7 +269,7 @@ func TestPodRegistry_UpdatePod(t *testing.T) {
 			// Update pod with invalid spec
 			validPod.Spec.Containers[0].Image = "" // Invalid because image is empty
 			err = registry.UpdatePod(ctx, validPod)
-			assert.ErrorAs(t, err, &api.ErrInvalidPodSpec)
+			assert.ErrorIs(t, err, ErrPodInvalid)
 		})
 	})
 }
@@ -359,146 +362,198 @@ func TestPodRegistry_ListPods(t *testing.T) {
 		assert.Equal(t, "test-pod-1", pods[0].Name)
 		assert.Equal(t, "test-pod-2", pods[1].Name)
 	})
+
+	t.Run("should handle error returned by the storage provider", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mStorage := mockStorage.NewMockStorage(ctrl)
+		registry := NewPodRegistry(mStorage)
+		ctx := context.Background()
+
+		mStorage.EXPECT().List(ctx, podPrefix, gomock.Any()).Return(errors.New("failed to list pods"))
+
+		pods, err := registry.ListPods(ctx)
+
+		assert.ErrorIs(t, err, ErrListPodsFailed, "Expected error when listing pods")
+		assert.Nil(t, pods, "Expected nil list of pods")
+	})
 }
 
 func TestPodRegistry_ListPendingPods(t *testing.T) {
-	testCases := []struct {
-		name                string
-		podsToCreate        []*api.Pod
-		expectedPendingPods int
-	}{
-		{
-			name: "no pending pods",
-			podsToCreate: []*api.Pod{
-				{ObjectMeta: api.ObjectMeta{Name: "pod1"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodRunning},
-				{ObjectMeta: api.ObjectMeta{Name: "pod2"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodRunning},
+	t.Run("should list pending pods", func(t *testing.T) {
+		testCases := []struct {
+			name                string
+			podsToCreate        []*api.Pod
+			expectedPendingPods int
+		}{
+			{
+				name: "no pending pods",
+				podsToCreate: []*api.Pod{
+					{ObjectMeta: api.ObjectMeta{Name: "pod1"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodRunning},
+					{ObjectMeta: api.ObjectMeta{Name: "pod2"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodRunning},
+				},
+				expectedPendingPods: 0,
 			},
-			expectedPendingPods: 0,
-		},
-		{
-			name: "some pending pods",
-			podsToCreate: []*api.Pod{
-				{ObjectMeta: api.ObjectMeta{Name: "pod3"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodPending},
-				{ObjectMeta: api.ObjectMeta{Name: "pod4"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodRunning},
-				{ObjectMeta: api.ObjectMeta{Name: "pod5"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodPending},
+			{
+				name: "some pending pods",
+				podsToCreate: []*api.Pod{
+					{ObjectMeta: api.ObjectMeta{Name: "pod3"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodPending},
+					{ObjectMeta: api.ObjectMeta{Name: "pod4"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodRunning},
+					{ObjectMeta: api.ObjectMeta{Name: "pod5"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodPending},
+				},
+				expectedPendingPods: 2,
 			},
-			expectedPendingPods: 2,
-		},
-		{
-			name: "all pending pods",
-			podsToCreate: []*api.Pod{
-				{ObjectMeta: api.ObjectMeta{Name: "pod6"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodPending},
-				{ObjectMeta: api.ObjectMeta{Name: "pod7"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodPending},
+			{
+				name: "all pending pods",
+				podsToCreate: []*api.Pod{
+					{ObjectMeta: api.ObjectMeta{Name: "pod6"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodPending},
+					{ObjectMeta: api.ObjectMeta{Name: "pod7"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodPending},
+				},
+				expectedPendingPods: 2,
 			},
-			expectedPendingPods: 2,
-		},
-	}
+		}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
-				etcdStorage := storage.NewEtcdStorage(etcdServer)
-				registry := NewPodRegistry(etcdStorage)
-				ctx := context.Background()
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+					etcdStorage := storage.NewEtcdStorage(etcdServer)
+					registry := NewPodRegistry(etcdStorage)
+					ctx := context.Background()
 
-				// Create test pods
-				for _, pod := range tc.podsToCreate {
-					if err := registry.CreatePod(ctx, pod); err != nil {
-						t.Fatalf("Failed to create test pod: %v", err)
+					// Create test pods
+					for _, pod := range tc.podsToCreate {
+						if err := registry.CreatePod(ctx, pod); err != nil {
+							t.Fatalf("Failed to create test pod: %v", err)
+						}
 					}
-				}
 
-				// Call ListPods
-				pods, err := registry.ListPendingPods(ctx)
-				require.NoError(t, err)
+					// Call ListPendingPods
+					pods, err := registry.ListPendingPods(ctx)
+					require.NoError(t, err)
 
-				assert.Equal(t, tc.expectedPendingPods, len(pods))
+					assert.Equal(t, tc.expectedPendingPods, len(pods))
+				})
 			})
-		})
-	}
+		}
+	})
+
+	t.Run("should handle error returned by the storage provider", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mStorage := mockStorage.NewMockStorage(ctrl)
+		registry := NewPodRegistry(mStorage)
+		ctx := context.Background()
+
+		mStorage.EXPECT().List(ctx, podPrefix, gomock.Any()).Return(errors.New("failed to list pods"))
+
+		pods, err := registry.ListPendingPods(ctx)
+
+		assert.ErrorIs(t, err, ErrListPodsFailed, "Expected error when listing pods")
+		assert.Nil(t, pods, "Expected nil list of pods")
+	})
 }
 
 func TestPodRegistry_ListUnassignedPods(t *testing.T) {
-	testCases := []struct {
-		name                   string
-		podsToCreate           []*api.Pod
-		expectedUnassignedPods int
-	}{
-		{
-			name: "no unassigned pods",
-			podsToCreate: []*api.Pod{
-				{ObjectMeta: api.ObjectMeta{Name: "pod1"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodRunning},
-				{ObjectMeta: api.ObjectMeta{Name: "pod2"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodRunning},
+	t.Run("should list unassigned pods", func(t *testing.T) {
+		testCases := []struct {
+			name                   string
+			podsToCreate           []*api.Pod
+			expectedUnassignedPods int
+		}{
+			{
+				name: "no unassigned pods",
+				podsToCreate: []*api.Pod{
+					{ObjectMeta: api.ObjectMeta{Name: "pod1"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodRunning},
+					{ObjectMeta: api.ObjectMeta{Name: "pod2"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodRunning},
+				},
+				expectedUnassignedPods: 0,
 			},
-			expectedUnassignedPods: 0,
-		},
-		{
-			name: "some unassigned pods",
-			podsToCreate: []*api.Pod{
-				{ObjectMeta: api.ObjectMeta{Name: "pod3"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodPending},
-				{ObjectMeta: api.ObjectMeta{Name: "pod4"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodRunning},
-				{ObjectMeta: api.ObjectMeta{Name: "pod5"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodPending},
+			{
+				name: "some unassigned pods",
+				podsToCreate: []*api.Pod{
+					{ObjectMeta: api.ObjectMeta{Name: "pod3"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodPending},
+					{ObjectMeta: api.ObjectMeta{Name: "pod4"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodRunning},
+					{ObjectMeta: api.ObjectMeta{Name: "pod5"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodPending},
+				},
+				expectedUnassignedPods: 2,
 			},
-			expectedUnassignedPods: 2,
-		},
-		{
-			name: "all unassigned pods",
-			podsToCreate: []*api.Pod{
-				{ObjectMeta: api.ObjectMeta{Name: "pod6"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodPending},
-				{ObjectMeta: api.ObjectMeta{Name: "pod7"},
-					Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
-					Status: api.PodPending},
+			{
+				name: "all unassigned pods",
+				podsToCreate: []*api.Pod{
+					{ObjectMeta: api.ObjectMeta{Name: "pod6"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodPending},
+					{ObjectMeta: api.ObjectMeta{Name: "pod7"},
+						Spec:   api.PodSpec{Containers: []api.Container{{Name: "test-container2", Image: "nginx"}}},
+						Status: api.PodPending},
+				},
+				expectedUnassignedPods: 2,
 			},
-			expectedUnassignedPods: 2,
-		},
-	}
+		}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
-				etcdStorage := storage.NewEtcdStorage(etcdServer)
-				registry := NewPodRegistry(etcdStorage)
-				ctx := context.Background()
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+					etcdStorage := storage.NewEtcdStorage(etcdServer)
+					registry := NewPodRegistry(etcdStorage)
+					ctx := context.Background()
 
-				// Create test pods
-				for _, pod := range tc.podsToCreate {
-					if err := registry.CreatePod(ctx, pod); err != nil {
-						t.Fatalf("Failed to create test pod: %v", err)
+					// Create test pods
+					for _, pod := range tc.podsToCreate {
+						if err := registry.CreatePod(ctx, pod); err != nil {
+							t.Fatalf("Failed to create test pod: %v", err)
+						}
 					}
-				}
 
-				// Call ListPods
-				pods, err := registry.ListUnassignedPods(ctx)
-				require.NoError(t, err)
+					// Call ListUnassignedPods
+					pods, err := registry.ListUnassignedPods(ctx)
+					require.NoError(t, err)
 
-				assert.Equal(t, tc.expectedUnassignedPods, len(pods))
+					assert.Equal(t, tc.expectedUnassignedPods, len(pods))
+				})
 			})
-		})
-	}
+		}
+	})
+
+	t.Run("should handle error returned by the storage provider", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mStorage := mockStorage.NewMockStorage(ctrl)
+		registry := NewPodRegistry(mStorage)
+		ctx := context.Background()
+
+		mStorage.EXPECT().List(ctx, podPrefix, gomock.Any()).Return(errors.New("failed to list pods"))
+
+		pods, err := registry.ListUnassignedPods(ctx)
+
+		assert.ErrorIs(t, err, ErrListPodsFailed, "Expected error when listing pods")
+		assert.Nil(t, pods, "Expected nil list of pods")
+	})
 }

@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -12,9 +13,10 @@ import (
 const podPrefix = "/pods/"
 
 var (
-	ErrPodAlreadyExists = fmt.Errorf("pod already exists")
-	ErrPodNotFound      = fmt.Errorf("pod not found")
-	ErrListPodsFailed   = fmt.Errorf("failed to list pods")
+	ErrPodAlreadyExists = errors.New("pod already exists")
+	ErrPodNotFound      = errors.New("pod not found")
+	ErrListPodsFailed   = errors.New("failed to list pods")
+	ErrPodInvalid       = errors.New("invalid pod")
 )
 
 // PodRegistry provides thread-safe operations for managing Pod objects in the storage.
@@ -54,7 +56,7 @@ func (r *PodRegistry) CreatePod(ctx context.Context, pod *api.Pod) error {
 
 	// Validate Pod spec
 	if err := pod.Validate(); err != nil {
-		return fmt.Errorf("invalid pod spec: %w", err)
+		return fmt.Errorf("%w: %v", ErrPodInvalid, err)
 	}
 
 	return r.storage.Create(ctx, key, pod)
@@ -86,7 +88,7 @@ func (r *PodRegistry) UpdatePod(ctx context.Context, pod *api.Pod) error {
 
 	// Validate Pod spec
 	if err := pod.Validate(); err != nil {
-		return fmt.Errorf("invalid pod spec: %w", err)
+		return fmt.Errorf("%w: %v", ErrPodInvalid, err)
 	}
 
 	return r.storage.Update(ctx, key, pod)
@@ -144,17 +146,5 @@ func (r *PodRegistry) ListUnassignedPods(ctx context.Context) ([]*api.Pod, error
 // ListPendingPods retrieves all Pods with a status of PodPending from the registry.
 // It returns a slice of pending Pod objects and an error if the listing fails.
 func (r *PodRegistry) ListPendingPods(ctx context.Context) ([]*api.Pod, error) {
-	allPods, err := r.ListPods(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var pendingPods []*api.Pod
-	for _, pod := range allPods {
-		if pod.Status == api.PodPending {
-			pendingPods = append(pendingPods, pod)
-		}
-	}
-
-	return pendingPods, nil
+	return r.listPodsByStatus(ctx, api.PodPending)
 }
