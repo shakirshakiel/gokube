@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"gokube/pkg/api"
@@ -40,7 +39,7 @@ func (rsc *ReplicaSetController) Reconcile(ctx context.Context, rs *api.ReplicaS
 	}
 
 	// Get active pods for this ReplicaSet
-	activePods, err := rsc.getPodsForReplicaSet(currentRS, allPods, isPodActiveAndOwnedBy)
+	activePods, err := rsc.getPodsForReplicaSet(currentRS, allPods, api.IsPodActiveAndOwnedBy)
 	if err != nil {
 		return err
 	}
@@ -82,15 +81,14 @@ func (rsc *ReplicaSetController) Reconcile(ctx context.Context, rs *api.ReplicaS
 	return nil
 }
 
-// GeneratePodNameFromReplicaSet creates a pod name based on the ReplicaSet and container names
-func generatePodNameFromReplicaSet(replicaSetName string) string {
-	return names.SimpleNameGenerator.GenerateName(replicaSetName)
-}
-
-func (rsc *ReplicaSetController) getPodsForReplicaSet(rs *api.ReplicaSet, allPods []*api.Pod, condition func(*api.Pod, *api.ReplicaSet) bool) ([]*api.Pod, error) {
+func (rsc *ReplicaSetController) getPodsForReplicaSet(
+	rs *api.ReplicaSet,
+	allPods []*api.Pod,
+	condition func(*api.Pod, *api.ObjectMeta) bool,
+) ([]*api.Pod, error) {
 	var activePods []*api.Pod
 	for _, pod := range allPods {
-		if condition(pod, rs) {
+		if condition(pod, &rs.ObjectMeta) {
 			activePods = append(activePods, pod)
 		}
 	}
@@ -98,13 +96,8 @@ func (rsc *ReplicaSetController) getPodsForReplicaSet(rs *api.ReplicaSet, allPod
 	return activePods, nil
 }
 
-func isPodActiveAndOwnedBy(pod *api.Pod, rs *api.ReplicaSet) bool {
-	// Check if the pod name contains the ReplicaSet name (ownership)
-	return isOwnedBy(pod, rs) && isActive(pod)
-}
-
 func (rsc *ReplicaSetController) getPodsOwnedBy(rs *api.ReplicaSet, pods []*api.Pod) ([]*api.Pod, error) {
-	return rsc.getPodsForReplicaSet(rs, pods, isOwnedBy)
+	return rsc.getPodsForReplicaSet(rs, pods, api.IsOwnedBy)
 }
 
 func (rsc *ReplicaSetController) Start(ctx context.Context) {
@@ -123,7 +116,7 @@ func (rsc *ReplicaSetController) Start(ctx context.Context) {
 	}
 }
 
-func (rsc *ReplicaSetController) Run(ctx context.Context) error {
+func (rsc *ReplicaSetController) Run(_ context.Context) error {
 
 	rscList, err := rsc.replicaSetRegistry.List(context.Background())
 	if err != nil {
@@ -140,11 +133,7 @@ func (rsc *ReplicaSetController) Run(ctx context.Context) error {
 	return nil
 }
 
-func isActive(pod *api.Pod) bool {
-	//return pod.Status != api.PodSucceeded && pod.Status != api.PodFailed
-	return pod.Status != api.PodFailed //even succeeded pods should be considered active? or else controller keeps on creating pods
-}
-
-func isOwnedBy(pod *api.Pod, rs *api.ReplicaSet) bool {
-	return strings.HasPrefix(pod.Name, rs.Name)
+// GeneratePodNameFromReplicaSet creates a pod name based on the ReplicaSet and container names
+func generatePodNameFromReplicaSet(replicaSetName string) string {
+	return names.SimpleNameGenerator.GenerateName(replicaSetName)
 }
