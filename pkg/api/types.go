@@ -52,7 +52,7 @@ type Pod struct {
 	ObjectMeta `json:"metadata,omitempty"`
 	Spec       PodSpec   `json:"spec" validate:"required"`
 	NodeName   string    `json:"nodeName,omitempty"`
-	Status     PodStatus `json:"status" validate:"required"`
+	Status     PodStatus `json:"status"`
 	// Add other fields as needed
 }
 

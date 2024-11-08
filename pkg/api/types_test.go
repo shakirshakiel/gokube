@@ -137,25 +137,4 @@ func TestPodValidation(t *testing.T) {
 		assert.Error(t, err)
 		assert.EqualError(t, err, "Key: 'Pod.Spec.Containers' Error:Field validation for 'Containers' failed on the 'required' tag")
 	})
-
-	t.Run("should fail validation if status is missing", func(t *testing.T) {
-		pod := Pod{
-			ObjectMeta: ObjectMeta{
-				Name: "test-pod",
-			},
-			Spec: PodSpec{
-				Containers: []Container{
-					{
-						Name:  "nginx-container",
-						Image: "nginx:latest",
-					},
-				},
-				Replicas: 3,
-			},
-		}
-
-		err := validate.Struct(pod)
-		assert.Error(t, err)
-		assert.EqualError(t, err, "Key: 'Pod.Status' Error:Field validation for 'Status' failed on the 'required' tag")
-	})
 }
