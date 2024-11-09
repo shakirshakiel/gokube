@@ -167,7 +167,7 @@ func TestGetActivePodsForReplicaSet(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var rsc = &ReplicaSetController{}
-			activePods, err := rsc.getPodsForReplicaSet(rs, tc.pods, isPodActiveAndOwnedBy)
+			activePods, err := rsc.getPodsForReplicaSet(rs, tc.pods, api.IsPodActiveAndOwnedBy)
 
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
