@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -43,7 +44,12 @@ func (h *NodeHandler) GetNode(request *restful.Request, response *restful.Respon
 	name := request.PathParameter("name")
 	node, err := h.nodeRegistry.GetNode(request.Request.Context(), name)
 	if err != nil {
-		api.WriteError(response, http.StatusNotFound, err)
+		switch {
+		case errors.Is(err, registry.ErrNodeNotFound):
+			api.WriteError(response, http.StatusNotFound, err)
+		default:
+			api.WriteError(response, http.StatusInternalServerError, err)
+		}
 		return
 	}
 

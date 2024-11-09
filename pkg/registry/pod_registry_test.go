@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	mockStorage "gokube/mocks/pkg/storage"
@@ -77,6 +78,20 @@ func TestPodRegistry_GetPod(t *testing.T) {
 			assert.ErrorIs(t, err, ErrPodNotFound)
 			assert.EqualError(t, err, "pod not found: non-existent-pod")
 		})
+	})
+
+	t.Run("should return error if storage returns ErrInternal", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mStorage := mockStorage.NewMockStorage(ctrl)
+		registry := NewPodRegistry(mStorage)
+		ctx := context.Background()
+
+		mStorage.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(fmt.Errorf("storage error"))
+
+		_, err := registry.GetPod(ctx, "invalid-pod")
+		assert.ErrorIs(t, err, ErrInternal)
 	})
 }
 

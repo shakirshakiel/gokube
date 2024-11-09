@@ -317,7 +317,7 @@ func TestGetPod(t *testing.T) {
 
 			container.ServeHTTP(resp, req)
 
-			assert.Equal(t, http.StatusNotFound, resp.Code)
+			assert.Equal(t, http.StatusInternalServerError, resp.Code)
 		})
 	})
 }

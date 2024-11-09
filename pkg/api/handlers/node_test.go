@@ -171,7 +171,6 @@ func TestGetNode(t *testing.T) {
 	})
 
 	t.Run("should return internal server error for registry failure", func(t *testing.T) {
-		t.Skipf("Return proper error type from registry to distinguish between not found and internal server error")
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 

@@ -72,7 +72,12 @@ func (r *PodRegistry) GetPod(ctx context.Context, name string) (*api.Pod, error)
 	pod := &api.Pod{}
 	err := r.storage.Get(ctx, key, pod)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrPodNotFound, name)
+		switch {
+		case errors.Is(err, storage.ErrNotFound):
+			return nil, fmt.Errorf("%w: %s", ErrPodNotFound, name)
+		default:
+			return nil, fmt.Errorf("%w: failed to get pod: %v", ErrInternal, err)
+		}
 	}
 
 	return pod, nil

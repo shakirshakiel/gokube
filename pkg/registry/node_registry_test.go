@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -85,6 +86,20 @@ func TestNodeRegistry_GetNode(t *testing.T) {
 			_, err := nodeRegistry.GetNode(ctx, "non-existent-node")
 			assert.Errorf(t, err, "node non-existent-node not found")
 		})
+	})
+
+	t.Run("should return ErrInternal on storage error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mStorage := mockStorage.NewMockStorage(ctrl)
+		nodeRegistry := NewNodeRegistry(mStorage)
+		node := createTestNode("test-node", "123")
+
+		mStorage.EXPECT().Get(gomock.Any(), generateKey(nodePrefix, node.Name), gomock.Any()).Return(fmt.Errorf("storage error"))
+
+		_, err := nodeRegistry.GetNode(context.Background(), "test-node")
+		assert.ErrorIs(t, err, ErrInternal)
 	})
 }
 

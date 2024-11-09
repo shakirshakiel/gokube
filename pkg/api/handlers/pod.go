@@ -59,7 +59,12 @@ func (h *PodHandler) GetPod(request *restful.Request, response *restful.Response
 	name := request.PathParameter("name")
 	pod, err := h.podRegistry.GetPod(request.Request.Context(), name)
 	if err != nil {
-		api.WriteError(response, http.StatusNotFound, err)
+		switch {
+		case errors.Is(err, registry.ErrPodNotFound):
+			api.WriteError(response, http.StatusNotFound, err)
+		default:
+			api.WriteError(response, http.StatusInternalServerError, err)
+		}
 		return
 	}
 
