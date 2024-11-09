@@ -27,13 +27,12 @@ func StartEmbeddedEtcd() (*embed.Etcd, int, error) {
 	}
 
 	cfg.ListenPeerUrls = []url.URL{{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", port)}}
-
 	port, err = PickAvailableRandomPort()
 	if err != nil {
 		return nil, port, err
 	}
-	cfg.ListenClientUrls = []url.URL{{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", port)}}
 
+	cfg.ListenClientUrls = []url.URL{{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", port)}}
 	cfg.Logger = "zap"
 	cfg.LogOutputs = []string{"stderr"}
 
@@ -58,11 +57,13 @@ func PickAvailableRandomPort() (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	port, err := ln.Addr().(*net.TCPAddr).Port, ln.Close()
 	if err != nil {
 		return 0, err
 	}
-	return port, err
+
+	return port, nil
 }
 
 // StopEmbeddedEtcd stops the embedded etcd server and removes the data directory.
