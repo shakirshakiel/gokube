@@ -1,8 +1,15 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/go-playground/validator/v10"
+)
+
+var (
+	ErrInvalidPodSpec = errors.New("invalid pod spec")
 )
 
 type PodSpec struct {
@@ -20,6 +27,7 @@ type Pod struct {
 
 // Validate validates the PodSpec of the Pod.
 func (p *Pod) Validate() error {
+	validate := validator.New()
 	err := validate.Struct(p)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidPodSpec, err)

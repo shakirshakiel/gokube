@@ -3,8 +3,6 @@ package api
 import (
 	"errors"
 	"time"
-
-	"github.com/go-playground/validator/v10"
 )
 
 type PodStatus string
@@ -32,26 +30,17 @@ const (
 )
 
 var (
-	ErrInvalidPodSpec = errors.New("invalid pod spec")
+	ErrInvalidNodeSpec = errors.New("invalid node spec")
 )
-
-var validate = validator.New()
 
 type Container struct {
 	Name  string `json:"name" validate:"required"`
 	Image string `json:"image" validate:"required"`
 }
 
-// Node is a simplified representation of a Kubernetes Node
-type Node struct {
-	ObjectMeta `json:"metadata,omitempty"`
-	Spec       NodeSpec   `json:"spec,omitempty"`
-	Status     NodeStatus `json:"status,omitempty"`
-}
-
 // ObjectMeta is minimal metadata that all persisted resources must have
 type ObjectMeta struct {
-	Name              string    `json:"name"`
+	Name              string    `json:"name" validate:"required"`
 	Namespace         string    `json:"namespace,omitempty"`
 	UID               string    `json:"uid,omitempty"`
 	ResourceVersion   string    `json:"resourceVersion,omitempty"`

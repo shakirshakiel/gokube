@@ -18,6 +18,7 @@ var (
 	ErrNodeNotFound      = errors.New("node not found")
 	ErrNodeAlreadyExists = errors.New("node already exists")
 	ErrListNodesFailed   = errors.New("failed to list nodes")
+	ErrNodeInvalid       = errors.New("invalid node")
 )
 
 // NodeRegistry provides CRUD operations for Node objects
@@ -45,6 +46,11 @@ func (r *NodeRegistry) CreateNode(ctx context.Context, node *api.Node) error {
 		return fmt.Errorf("%w: %s", ErrNodeAlreadyExists, node.Name)
 	}
 
+	// Validate Node spec
+	if err := node.Validate(); err != nil {
+		return fmt.Errorf("%w: %v", ErrNodeInvalid, err)
+	}
+
 	return r.storage.Create(ctx, key, node)
 }
 
@@ -67,6 +73,12 @@ func (r *NodeRegistry) GetNode(ctx context.Context, name string) (*api.Node, err
 // UpdateNode updates an existing Node
 func (r *NodeRegistry) UpdateNode(ctx context.Context, node *api.Node) error {
 	key := generateKey(nodePrefix, node.Name)
+
+	// Validate Node spec
+	if err := node.Validate(); err != nil {
+		return fmt.Errorf("%w: %v", ErrNodeInvalid, err)
+	}
+
 	return r.storage.Update(ctx, key, node)
 }
 

@@ -24,20 +24,22 @@ func NewPodHandler(podRegistry *registry.PodRegistry) *PodHandler {
 // CreatePod handles POST requests to create a new Pod
 func (h *PodHandler) CreatePod(request *restful.Request, response *restful.Response) {
 	pod := new(api.Pod)
-	err := request.ReadEntity(pod)
-	if err != nil {
+	if err := request.ReadEntity(pod); err != nil {
 		api.WriteError(response, http.StatusBadRequest, err)
 		return
 	}
 
-	err = h.podRegistry.CreatePod(request.Request.Context(), pod)
-	switch {
-	case errors.Is(err, registry.ErrPodInvalid):
-		api.WriteError(response, http.StatusBadRequest, err)
-		return
-	case err != nil:
-		api.WriteError(response, http.StatusInternalServerError, err)
-		return
+	if err := h.podRegistry.CreatePod(request.Request.Context(), pod); err != nil {
+		switch {
+		case errors.Is(err, registry.ErrPodAlreadyExists):
+			api.WriteError(response, http.StatusConflict, err)
+		case errors.Is(err, registry.ErrPodInvalid):
+			api.WriteError(response, http.StatusBadRequest, err)
+			return
+		default:
+			api.WriteError(response, http.StatusInternalServerError, err)
+			return
+		}
 	}
 
 	api.WriteResponse(response, http.StatusCreated, pod)
@@ -75,8 +77,7 @@ func (h *PodHandler) GetPod(request *restful.Request, response *restful.Response
 func (h *PodHandler) UpdatePod(request *restful.Request, response *restful.Response) {
 	name := request.PathParameter("name")
 	pod := new(api.Pod)
-	err := request.ReadEntity(pod)
-	if err != nil {
+	if err := request.ReadEntity(pod); err != nil {
 		api.WriteError(response, http.StatusBadRequest, err)
 		return
 	}
@@ -86,14 +87,15 @@ func (h *PodHandler) UpdatePod(request *restful.Request, response *restful.Respo
 		return
 	}
 
-	err = h.podRegistry.UpdatePod(request.Request.Context(), pod)
-	switch {
-	case errors.Is(err, registry.ErrPodInvalid):
-		api.WriteError(response, http.StatusBadRequest, err)
-		return
-	case err != nil:
-		api.WriteError(response, http.StatusInternalServerError, err)
-		return
+	if err := h.podRegistry.UpdatePod(request.Request.Context(), pod); err != nil {
+		switch {
+		case errors.Is(err, registry.ErrPodInvalid):
+			api.WriteError(response, http.StatusBadRequest, err)
+			return
+		default:
+			api.WriteError(response, http.StatusInternalServerError, err)
+			return
+		}
 	}
 
 	api.WriteResponse(response, http.StatusOK, pod)
@@ -102,8 +104,7 @@ func (h *PodHandler) UpdatePod(request *restful.Request, response *restful.Respo
 // DeletePod handles DELETE requests to remove a Pod
 func (h *PodHandler) DeletePod(request *restful.Request, response *restful.Response) {
 	name := request.PathParameter("name")
-	err := h.podRegistry.DeletePod(request.Request.Context(), name)
-	if err != nil {
+	if err := h.podRegistry.DeletePod(request.Request.Context(), name); err != nil {
 		api.WriteError(response, http.StatusInternalServerError, err)
 		return
 	}

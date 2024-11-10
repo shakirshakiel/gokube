@@ -57,7 +57,6 @@ func TestCreateNode(t *testing.T) {
 	})
 
 	t.Run("should return bad request for invalid node", func(t *testing.T) {
-		t.Skipf("Add validation to ObjectMeta.Name in api.Node and remove skip")
 		withTestServer(t, func(etcdServer *clientv3.Client, ws *restful.WebService, container *restful.Container) {
 			store := storage.NewEtcdStorage(etcdServer)
 			nodeRegistry := registry.NewNodeRegistry(store)
@@ -112,6 +111,38 @@ func TestCreateNode(t *testing.T) {
 			container.ServeHTTP(resp, req)
 
 			assert.Equal(t, http.StatusInternalServerError, resp.Code)
+		})
+	})
+
+	t.Run("should return conflict error when node already exists", func(t *testing.T) {
+		withTestServer(t, func(etcdServer *clientv3.Client, ws *restful.WebService, container *restful.Container) {
+			store := storage.NewEtcdStorage(etcdServer)
+			nodeRegistry := registry.NewNodeRegistry(store)
+			handler := NewNodeHandler(nodeRegistry)
+			ctx := context.Background()
+
+			RegisterNodeRoutes(ws, handler)
+
+			// Create initial node
+			node := &api.Node{
+				ObjectMeta: api.ObjectMeta{
+					Name: "test-node",
+				},
+				Spec: api.NodeSpec{},
+			}
+
+			err := nodeRegistry.CreateNode(ctx, node)
+			require.NoError(t, err)
+
+			// Try to create same node again
+			body, _ := json.Marshal(node)
+			req := httptest.NewRequest("POST", "/api/v1/nodes", bytes.NewReader(body))
+			req.Header.Set("Content-Type", restful.MIME_JSON)
+			resp := httptest.NewRecorder()
+
+			container.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusConflict, resp.Code)
 		})
 	})
 }
@@ -267,7 +298,6 @@ func TestUpdateNode(t *testing.T) {
 	})
 
 	t.Run("should return bad request for invalid node", func(t *testing.T) {
-		t.Skipf("Add validation to ObjectMeta.Name in api.Node and remove skip")
 		withTestServer(t, func(etcdServer *clientv3.Client, ws *restful.WebService, container *restful.Container) {
 			store := storage.NewEtcdStorage(etcdServer)
 			nodeRegistry := registry.NewNodeRegistry(store)
@@ -304,7 +334,7 @@ func TestUpdateNode(t *testing.T) {
 		withTestServer(t, func(_ *clientv3.Client, ws *restful.WebService, container *restful.Container) {
 			RegisterNodeRoutes(ws, handler)
 
-			mockStore.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("simulated registry failure"))
+			mockStore.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("simulated registry failure"))
 
 			node := &api.Node{
 				ObjectMeta: api.ObjectMeta{
@@ -321,6 +351,32 @@ func TestUpdateNode(t *testing.T) {
 			container.ServeHTTP(resp, req)
 
 			assert.Equal(t, http.StatusInternalServerError, resp.Code)
+		})
+	})
+
+	t.Run("should return not found for non-existent node", func(t *testing.T) {
+		withTestServer(t, func(etcdServer *clientv3.Client, ws *restful.WebService, container *restful.Container) {
+			store := storage.NewEtcdStorage(etcdServer)
+			nodeRegistry := registry.NewNodeRegistry(store)
+			handler := NewNodeHandler(nodeRegistry)
+
+			RegisterNodeRoutes(ws, handler)
+
+			node := &api.Node{
+				ObjectMeta: api.ObjectMeta{
+					Name: "non-existent-node",
+				},
+				Spec: api.NodeSpec{},
+			}
+
+			body, _ := json.Marshal(node)
+			req := httptest.NewRequest("PUT", "/api/v1/nodes/non-existent-node", bytes.NewReader(body))
+			req.Header.Set("Content-Type", restful.MIME_JSON)
+			resp := httptest.NewRecorder()
+
+			container.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusNotFound, resp.Code)
 		})
 	})
 }

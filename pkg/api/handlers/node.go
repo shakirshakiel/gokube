@@ -24,15 +24,20 @@ func NewNodeHandler(nodeRegistry *registry.NodeRegistry) *NodeHandler {
 // CreateNode handles POST requests to create a new Node
 func (h *NodeHandler) CreateNode(request *restful.Request, response *restful.Response) {
 	node := new(api.Node)
-	err := request.ReadEntity(node)
-	if err != nil {
+	if err := request.ReadEntity(node); err != nil {
 		api.WriteError(response, http.StatusBadRequest, err)
 		return
 	}
 
-	err = h.nodeRegistry.CreateNode(request.Request.Context(), node)
-	if err != nil {
-		api.WriteError(response, http.StatusInternalServerError, err)
+	if err := h.nodeRegistry.CreateNode(request.Request.Context(), node); err != nil {
+		switch {
+		case errors.Is(err, registry.ErrNodeAlreadyExists):
+			api.WriteError(response, http.StatusConflict, err)
+		case errors.Is(err, registry.ErrNodeInvalid):
+			api.WriteError(response, http.StatusBadRequest, err)
+		default:
+			api.WriteError(response, http.StatusInternalServerError, err)
+		}
 		return
 	}
 
@@ -60,21 +65,33 @@ func (h *NodeHandler) GetNode(request *restful.Request, response *restful.Respon
 func (h *NodeHandler) UpdateNode(request *restful.Request, response *restful.Response) {
 	name := request.PathParameter("name")
 	node := new(api.Node)
-	err := request.ReadEntity(node)
-	if err != nil {
+	if err := request.ReadEntity(node); err != nil {
 		api.WriteError(response, http.StatusBadRequest, err)
 		return
 	}
 
 	if name != node.Name {
-		api.WriteError(response, http.StatusBadRequest,
-			fmt.Errorf("node name in URL does not match the name in the request body"))
+		api.WriteError(response, http.StatusBadRequest, fmt.Errorf("node name in URL does not match the name in the request body"))
 		return
 	}
 
-	err = h.nodeRegistry.UpdateNode(request.Request.Context(), node)
-	if err != nil {
-		api.WriteError(response, http.StatusInternalServerError, err)
+	if _, err := h.nodeRegistry.GetNode(request.Request.Context(), name); err != nil {
+		switch {
+		case errors.Is(err, registry.ErrNodeNotFound):
+			api.WriteError(response, http.StatusNotFound, err)
+		default:
+			api.WriteError(response, http.StatusInternalServerError, err)
+		}
+		return
+	}
+
+	if err := h.nodeRegistry.UpdateNode(request.Request.Context(), node); err != nil {
+		switch {
+		case errors.Is(err, registry.ErrNodeInvalid):
+			api.WriteError(response, http.StatusBadRequest, err)
+		default:
+			api.WriteError(response, http.StatusInternalServerError, err)
+		}
 		return
 	}
 
@@ -84,8 +101,7 @@ func (h *NodeHandler) UpdateNode(request *restful.Request, response *restful.Res
 // DeleteNode handles DELETE requests to remove a Node
 func (h *NodeHandler) DeleteNode(request *restful.Request, response *restful.Response) {
 	name := request.PathParameter("name")
-	err := h.nodeRegistry.DeleteNode(request.Request.Context(), name)
-	if err != nil {
+	if err := h.nodeRegistry.DeleteNode(request.Request.Context(), name); err != nil {
 		api.WriteError(response, http.StatusInternalServerError, err)
 		return
 	}

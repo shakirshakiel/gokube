@@ -105,6 +105,44 @@ func TestCreatePod(t *testing.T) {
 		})
 	})
 
+	t.Run("should return conflict for existing pod", func(t *testing.T) {
+		withTestServer(t, func(etcdServer *clientv3.Client, ws *restful.WebService, container *restful.Container) {
+			store := storage.NewEtcdStorage(etcdServer)
+			podRegistry := registry.NewPodRegistry(store)
+			handler := NewPodHandler(podRegistry)
+			ctx := context.Background()
+
+			RegisterPodRoutes(ws, handler)
+
+			pod := &api.Pod{
+				ObjectMeta: api.ObjectMeta{
+					Name: "test-pod",
+				},
+				Spec: api.PodSpec{
+					Replicas: 1,
+					Containers: []api.Container{
+						{
+							Name:  "nginx",
+							Image: "nginx:latest",
+						},
+					},
+				},
+			}
+
+			err := podRegistry.CreatePod(ctx, pod)
+			require.NoError(t, err)
+
+			body, _ := json.Marshal(pod)
+			req := httptest.NewRequest("POST", "/api/v1/pods", bytes.NewReader(body))
+			req.Header.Set("Content-Type", restful.MIME_JSON)
+			resp := httptest.NewRecorder()
+
+			container.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusConflict, resp.Code)
+		})
+	})
+
 	t.Run("should return internal server error for registry failure", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

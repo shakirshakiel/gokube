@@ -56,6 +56,17 @@ func TestNodeRegistry_CreateNode(t *testing.T) {
 			assert.ErrorIs(t, err, ErrNodeAlreadyExists)
 		})
 	})
+
+	t.Run("should fail to create invalid node", func(t *testing.T) {
+		storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+			etcdStorage := storage.NewEtcdStorage(etcdServer)
+			nodeRegistry := NewNodeRegistry(etcdStorage)
+			node := createTestNode("", "123") // Invalid node with empty name
+
+			err := nodeRegistry.CreateNode(context.Background(), node)
+			assert.ErrorIs(t, err, ErrNodeInvalid)
+		})
+	})
 }
 
 func TestNodeRegistry_GetNode(t *testing.T) {
@@ -104,22 +115,40 @@ func TestNodeRegistry_GetNode(t *testing.T) {
 }
 
 func TestNodeRegistry_UpdateNode(t *testing.T) {
-	storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
-		etcdStorage := storage.NewEtcdStorage(etcdServer)
-		nodeRegistry := NewNodeRegistry(etcdStorage)
-		nodeName := "test-node-3"
-		createTestNodeInRegistry(t, nodeRegistry, nodeName, "789")
+	t.Run("should update node", func(t *testing.T) {
+		storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+			etcdStorage := storage.NewEtcdStorage(etcdServer)
+			nodeRegistry := NewNodeRegistry(etcdStorage)
+			nodeName := "test-node-3"
+			createTestNodeInRegistry(t, nodeRegistry, nodeName, "789")
 
-		node, err := nodeRegistry.GetNode(context.Background(), nodeName)
-		require.NoError(t, err)
+			node, err := nodeRegistry.GetNode(context.Background(), nodeName)
+			require.NoError(t, err)
 
-		node.Spec.Unschedulable = true
-		err = nodeRegistry.UpdateNode(context.Background(), node)
-		assert.NoError(t, err)
+			node.Spec.Unschedulable = true
+			err = nodeRegistry.UpdateNode(context.Background(), node)
+			assert.NoError(t, err)
 
-		updatedNode, err := nodeRegistry.GetNode(context.Background(), nodeName)
-		assert.NoError(t, err)
-		assert.True(t, updatedNode.Spec.Unschedulable)
+			updatedNode, err := nodeRegistry.GetNode(context.Background(), nodeName)
+			assert.NoError(t, err)
+			assert.True(t, updatedNode.Spec.Unschedulable)
+		})
+	})
+
+	t.Run("should fail to update invalid node", func(t *testing.T) {
+		storage.TestWithEmbeddedEtcd(t, func(t *testing.T, etcdServer *clientv3.Client) {
+			etcdStorage := storage.NewEtcdStorage(etcdServer)
+			nodeRegistry := NewNodeRegistry(etcdStorage)
+			nodeName := "test-node-3"
+			createTestNodeInRegistry(t, nodeRegistry, nodeName, "789")
+
+			node, err := nodeRegistry.GetNode(context.Background(), nodeName)
+			require.NoError(t, err)
+
+			node.Name = "" // Invalid node with empty name
+			err = nodeRegistry.UpdateNode(context.Background(), node)
+			assert.ErrorIs(t, err, ErrNodeInvalid)
+		})
 	})
 }
 
