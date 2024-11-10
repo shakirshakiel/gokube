@@ -17,6 +17,7 @@ import (
 
 var (
 	apiServerURL string
+	etcdPort     int
 )
 
 func main() {
@@ -32,6 +33,7 @@ func main() {
 	}
 
 	rootCmd.Flags().StringVar(&apiServerURL, "api-server", "localhost:8080", "URL of the API server")
+	rootCmd.Flags().IntVar(&etcdPort, "etcd-port", 2379, "Port of the etcd server")
 
 	if err := rootCmd.Execute(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -44,7 +46,7 @@ func runController() error {
 	signal.Notify(stopCh, os.Interrupt, syscall.SIGTERM)
 
 	cli, err := clientv3.New(clientv3.Config{
-		Endpoints: []string{apiServerURL},
+		Endpoints: []string{fmt.Sprintf("localhost:%d", etcdPort)},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create etcd client: %v", err)
@@ -64,6 +66,8 @@ func runController() error {
 	defer cancel()
 
 	go rsController.Start(ctx)
+
+	fmt.Println("Controller started successfully")
 
 	<-stopCh
 	fmt.Println("\nReceived shutdown signal. Stopping controller...")

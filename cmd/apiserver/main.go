@@ -16,7 +16,9 @@ import (
 )
 
 var (
-	address string
+	address     string
+	etcdPeerPort int
+	etcdClientPort int
 )
 
 func main() {
@@ -31,7 +33,9 @@ func main() {
 		},
 	}
 
-	rootCmd.Flags().StringVar(&address, `address`, `:8080`, `The address to serve on (default ":8080")`)
+	rootCmd.Flags().StringVar(&address, "address", ":8080", `The address to serve on (default ":8080")`)
+	rootCmd.Flags().IntVar(&etcdPeerPort, "etcd-peer-port", 0, `The port to start etcd peer on (default random port)`)
+	rootCmd.Flags().IntVar(&etcdClientPort, "etcd-client-port", 2379, `The port to start etcd client on (default 2379)`)
 
 	if err := rootCmd.Execute(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -45,7 +49,7 @@ func runAPIServer() error {
 	signal.Notify(stopCh, os.Interrupt, syscall.SIGTERM)
 
 	// Start embedded etcd
-	etcdServer, port, err := storage.StartEmbeddedEtcd()
+	etcdServer, port, err := storage.StartEmbeddedEtcdWithPort(etcdPeerPort, etcdClientPort)
 	if err != nil {
 		return fmt.Errorf("failed to start etcd: %v", err)
 	}

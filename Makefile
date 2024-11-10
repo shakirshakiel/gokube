@@ -74,7 +74,8 @@ $(OUT_DIR):
 
 # Build targets
 $(OUT_DIR)/%: $(OUT_DIR)
-	$(GOBUILD) -o $(@) -v ./cmd/$(@F)/main.go
+	@$(GOBUILD) -o $(@) -v ./cmd/$(@F)/main.go
+	@printf "Built %s\n" $(@F)
 
 build/apiserver: $(APISERVER_BINARY)
 build/controller: $(CONTROLLER_BINARY)
@@ -84,6 +85,7 @@ build/kubelet: $(KUBELET_BINARY)
 build-all: $(APISERVER_BINARY) $(CONTROLLER_BINARY) $(KUBELET_BINARY)
 
 clean:
-	$(GOCLEAN)
-	rm -f $(APISERVER_BINARY) $(CONTROLLER_BINARY) $(KUBELET_BINARY)
-	rm -rf $(OUT_DIR)
+	@$(GOCLEAN)
+	@rm -f $(APISERVER_BINARY) $(CONTROLLER_BINARY) $(KUBELET_BINARY)
+	@rm -rf $(OUT_DIR)
+	@printf "Cleaned up build artifacts\n"

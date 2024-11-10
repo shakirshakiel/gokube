@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"gokube/pkg/kubelet"
+	"gokube/pkg/registry/names"
 
 	"github.com/spf13/cobra"
 )
@@ -41,6 +42,10 @@ func runKubelet() error {
 	stopCh := make(chan os.Signal, 1)
 	signal.Notify(stopCh, os.Interrupt, syscall.SIGTERM)
 
+	if nodeName == "" {
+		nodeName = names.SimpleNameGenerator.GenerateName("gokube")
+	}
+
 	k, err := kubelet.NewKubelet(nodeName, apiServerURL)
 	if err != nil {
 		return fmt.Errorf("failed to create kubelet: %v", err)
@@ -49,6 +54,8 @@ func runKubelet() error {
 	if err := k.Start(); err != nil {
 		return fmt.Errorf("failed to start kubelet: %v", err)
 	}
+
+	fmt.Println("Kubelet started successfully")
 
 	<-stopCh
 	fmt.Println("\nReceived shutdown signal. Stopping kubelet...")
