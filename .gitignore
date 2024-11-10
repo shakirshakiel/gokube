@@ -41,3 +41,5 @@ etcd-data/
 **/*.etcd
 # Any other project-specific directories or files you want to ignore
 # Add them here
+
+out/

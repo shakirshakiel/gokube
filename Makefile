@@ -1,15 +1,15 @@
 # Go parameters
 GOCMD=go
+GORUN=$(GOCMD) run
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
-BINARY_NAME=etcdtest
 MAIN_PATH=./cmd/etcdtest
 
 # Make parameters
-.PHONY: all build test clean run deps ci install-mockgen mockgen
+.PHONY: all build test clean run deps ci install-mockgen mockgen build/apiserver build/controller build/kubelet
 
 all: test build
 
@@ -19,16 +19,12 @@ build:
 test:
 	$(GOTEST) -v ./...
 
-clean:
-	$(GOCLEAN)
-	rm -f $(BINARY_NAME)
-
 run: build
 	./$(BINARY_NAME)
 
 deps:
 	$(GOGET) ./...
-	$(GOMOD) tidy 
+	$(GOMOD) tidy
 
 test-registry:
 	$(GOTEST) -v ./pkg/registry
@@ -41,10 +37,10 @@ lint:
 	golangci-lint run --issues-exit-code 0
 
 fmt:
-	gofmt -s -w . 
+	gofmt -s -w .
 
 vet:
-	go vet $(shell go list ./...) 
+	go vet $(shell go list ./...)
 
 # CI build target
 ci: deps fmt vet lint test build
@@ -58,3 +54,36 @@ install-mockgen:
 		echo "mockgen not found, installing..."; \
 		$(GOCMD) install go.uber.org/mock/mockgen@latest; \
 	fi
+
+# Output directory
+OUT_DIR=./out
+
+# Binary names
+APISERVER_BINARY=$(OUT_DIR)/apiserver
+CONTROLLER_BINARY=$(OUT_DIR)/controller
+KUBELET_BINARY=$(OUT_DIR)/kubelet
+
+# Main paths
+APISERVER_MAIN=./apiserver/main.go
+CONTROLLER_MAIN=./controller/main.go
+KUBELET_MAIN=./kubelet/main.go
+
+# Ensure the output directory exists
+$(OUT_DIR):
+	mkdir -p $(OUT_DIR)
+
+# Build targets
+$(OUT_DIR)/%: $(OUT_DIR)
+	$(GOBUILD) -o $(@) -v ./cmd/$(@F)/main.go
+
+build/apiserver: $(APISERVER_BINARY)
+build/controller: $(CONTROLLER_BINARY)
+build/kubelet: $(KUBELET_BINARY)
+
+# Combined build target
+build-all: $(APISERVER_BINARY) $(CONTROLLER_BINARY) $(KUBELET_BINARY)
+
+clean:
+	$(GOCLEAN)
+	rm -f $(APISERVER_BINARY) $(CONTROLLER_BINARY) $(KUBELET_BINARY)
+	rm -rf $(OUT_DIR)
