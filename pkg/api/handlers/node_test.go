@@ -277,16 +277,28 @@ func TestUpdateNode(t *testing.T) {
 			store := storage.NewEtcdStorage(etcdServer)
 			nodeRegistry := registry.NewNodeRegistry(store)
 			handler := NewNodeHandler(nodeRegistry)
+			ctx := context.Background()
 
 			RegisterNodeRoutes(ws, handler)
 
-			node := &api.Node{
+			// Create the initial node first
+			existingNode := &api.Node{
+				ObjectMeta: api.ObjectMeta{
+					Name: "test-node",
+				},
+				Spec: api.NodeSpec{},
+			}
+			err := nodeRegistry.CreateNode(ctx, existingNode)
+			require.NoError(t, err)
+
+			// Try to update with mismatched name
+			nodeUpdate := &api.Node{
 				ObjectMeta: api.ObjectMeta{
 					Name: "different-name",
 				},
 			}
 
-			body, _ := json.Marshal(node)
+			body, _ := json.Marshal(nodeUpdate)
 			req := httptest.NewRequest("PUT", "/api/v1/nodes/test-node", bytes.NewReader(body))
 			req.Header.Set("Content-Type", restful.MIME_JSON)
 			resp := httptest.NewRecorder()
@@ -302,9 +314,21 @@ func TestUpdateNode(t *testing.T) {
 			store := storage.NewEtcdStorage(etcdServer)
 			nodeRegistry := registry.NewNodeRegistry(store)
 			handler := NewNodeHandler(nodeRegistry)
+			ctx := context.Background()
 
 			RegisterNodeRoutes(ws, handler)
 
+			// Create initial node
+			node := &api.Node{
+				ObjectMeta: api.ObjectMeta{
+					Name: "test-node",
+				},
+				Spec: api.NodeSpec{},
+			}
+			err := nodeRegistry.CreateNode(ctx, node)
+			require.NoError(t, err)
+
+			// Try to update with invalid node
 			invalidNode := &api.Node{
 				ObjectMeta: api.ObjectMeta{
 					Name: "",
@@ -427,6 +451,12 @@ func TestDeleteNode(t *testing.T) {
 		withTestServer(t, func(_ *clientv3.Client, ws *restful.WebService, container *restful.Container) {
 			RegisterNodeRoutes(ws, handler)
 
+			node := &api.Node{
+				ObjectMeta: api.ObjectMeta{
+					Name: "test-node",
+				},
+			}
+			mockStore.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).SetArg(2, *node)
 			mockStore.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(errors.New("simulated registry failure"))
 
 			req := httptest.NewRequest("DELETE", "/api/v1/nodes/test-node", nil)
@@ -437,7 +467,25 @@ func TestDeleteNode(t *testing.T) {
 			assert.Equal(t, http.StatusInternalServerError, resp.Code)
 		})
 	})
+
+	t.Run("should return not found for non-existent node", func(t *testing.T) {
+		withTestServer(t, func(etcdServer *clientv3.Client, ws *restful.WebService, container *restful.Container) {
+			store := storage.NewEtcdStorage(etcdServer)
+			nodeRegistry := registry.NewNodeRegistry(store)
+			handler := NewNodeHandler(nodeRegistry)
+
+			RegisterNodeRoutes(ws, handler)
+
+			req := httptest.NewRequest("DELETE", "/api/v1/nodes/non-existent-node", nil)
+			resp := httptest.NewRecorder()
+
+			container.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusNotFound, resp.Code)
+		})
+	})
 }
+
 func TestListNodes(t *testing.T) {
 	t.Run("should list all nodes", func(t *testing.T) {
 		withTestServer(t, func(etcdServer *clientv3.Client, ws *restful.WebService, container *restful.Container) {

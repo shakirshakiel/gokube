@@ -427,16 +427,36 @@ func TestUpdatePod(t *testing.T) {
 			store := storage.NewEtcdStorage(etcdServer)
 			podRegistry := registry.NewPodRegistry(store)
 			handler := NewPodHandler(podRegistry)
+			ctx := context.Background()
 
 			RegisterPodRoutes(ws, handler)
 
-			pod := &api.Pod{
+			// Create the initial pod first
+			existingPod := &api.Pod{
+				ObjectMeta: api.ObjectMeta{
+					Name: "test-pod",
+				},
+				Spec: api.PodSpec{
+					Replicas: 1,
+					Containers: []api.Container{
+						{
+							Name:  "nginx",
+							Image: "nginx:latest",
+						},
+					},
+				},
+			}
+			err := podRegistry.CreatePod(ctx, existingPod)
+			require.NoError(t, err)
+
+			// Try to update with a different name
+			updatePod := &api.Pod{
 				ObjectMeta: api.ObjectMeta{
 					Name: "different-name",
 				},
 			}
 
-			body, _ := json.Marshal(pod)
+			body, _ := json.Marshal(updatePod)
 			req := httptest.NewRequest("PUT", "/api/v1/pods/test-pod", bytes.NewReader(body))
 			req.Header.Set("Content-Type", restful.MIME_JSON)
 			resp := httptest.NewRecorder()
@@ -452,9 +472,29 @@ func TestUpdatePod(t *testing.T) {
 			store := storage.NewEtcdStorage(etcdServer)
 			podRegistry := registry.NewPodRegistry(store)
 			handler := NewPodHandler(podRegistry)
+			ctx := context.Background()
 
 			RegisterPodRoutes(ws, handler)
 
+			// Create initial pod
+			initialPod := &api.Pod{
+				ObjectMeta: api.ObjectMeta{
+					Name: "test-pod",
+				},
+				Spec: api.PodSpec{
+					Replicas: 1,
+					Containers: []api.Container{
+						{
+							Name:  "nginx",
+							Image: "nginx:latest",
+						},
+					},
+				},
+			}
+			err := podRegistry.CreatePod(ctx, initialPod)
+			require.NoError(t, err)
+
+			// Try to update with invalid pod
 			invalidPod := &api.Pod{
 				ObjectMeta: api.ObjectMeta{
 					Name: "test-pod",
@@ -486,6 +526,13 @@ func TestUpdatePod(t *testing.T) {
 		withTestServer(t, func(_ *clientv3.Client, ws *restful.WebService, container *restful.Container) {
 			RegisterPodRoutes(ws, handler)
 
+			// Mock Get operation for the middleware
+			existingPod := &api.Pod{
+				ObjectMeta: api.ObjectMeta{
+					Name: "test-pod",
+				},
+			}
+			mockStore.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).SetArg(2, *existingPod)
 			mockStore.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("simulated registry failure"))
 
 			pod := &api.Pod{
@@ -511,6 +558,34 @@ func TestUpdatePod(t *testing.T) {
 			container.ServeHTTP(resp, req)
 
 			assert.Equal(t, http.StatusInternalServerError, resp.Code)
+		})
+	})
+
+	t.Run("should return not found for non-existent pod", func(t *testing.T) {
+		withTestServer(t, func(etcdServer *clientv3.Client, ws *restful.WebService, container *restful.Container) {
+			store := storage.NewEtcdStorage(etcdServer)
+			podRegistry := registry.NewPodRegistry(store)
+			handler := NewPodHandler(podRegistry)
+
+			RegisterPodRoutes(ws, handler)
+
+			pod := &api.Pod{
+				ObjectMeta: api.ObjectMeta{
+					Name: "non-existent-pod",
+				},
+				Spec: api.PodSpec{
+					Replicas: 1,
+				},
+			}
+
+			body, _ := json.Marshal(pod)
+			req := httptest.NewRequest("PUT", "/api/v1/pods/non-existent-pod", bytes.NewReader(body))
+			req.Header.Set("Content-Type", restful.MIME_JSON)
+			resp := httptest.NewRecorder()
+
+			container.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusNotFound, resp.Code)
 		})
 	})
 }
@@ -569,6 +644,13 @@ func TestDeletePod(t *testing.T) {
 		withTestServer(t, func(_ *clientv3.Client, ws *restful.WebService, container *restful.Container) {
 			RegisterPodRoutes(ws, handler)
 
+			// Mock the Get operation from the middleware
+			pod := &api.Pod{
+				ObjectMeta: api.ObjectMeta{
+					Name: "test-pod",
+				},
+			}
+			mockStore.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).SetArg(2, *pod)
 			mockStore.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(errors.New("simulated registry failure"))
 
 			req := httptest.NewRequest("DELETE", "/api/v1/pods/test-pod", nil)
@@ -577,6 +659,23 @@ func TestDeletePod(t *testing.T) {
 			container.ServeHTTP(resp, req)
 
 			assert.Equal(t, http.StatusInternalServerError, resp.Code)
+		})
+	})
+
+	t.Run("should return not found for non-existent pod", func(t *testing.T) {
+		withTestServer(t, func(etcdServer *clientv3.Client, ws *restful.WebService, container *restful.Container) {
+			store := storage.NewEtcdStorage(etcdServer)
+			podRegistry := registry.NewPodRegistry(store)
+			handler := NewPodHandler(podRegistry)
+
+			RegisterPodRoutes(ws, handler)
+
+			req := httptest.NewRequest("DELETE", "/api/v1/pods/non-existent-pod", nil)
+			resp := httptest.NewRecorder()
+
+			container.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusNotFound, resp.Code)
 		})
 	})
 }
