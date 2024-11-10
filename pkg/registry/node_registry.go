@@ -41,8 +41,7 @@ func (r *NodeRegistry) CreateNode(ctx context.Context, node *api.Node) error {
 	key := generateKey(nodePrefix, node.Name)
 	existingNode := &api.Node{}
 
-	err := r.storage.Get(ctx, key, existingNode)
-	if err == nil {
+	if err := r.storage.Get(ctx, key, existingNode); err == nil {
 		return fmt.Errorf("%w: %s", ErrNodeAlreadyExists, node.Name)
 	}
 
@@ -59,12 +58,13 @@ func (r *NodeRegistry) GetNode(ctx context.Context, name string) (*api.Node, err
 	key := generateKey(nodePrefix, name)
 	node := &api.Node{}
 
-	err := r.storage.Get(ctx, key, node)
-	switch {
-	case errors.Is(err, storage.ErrNotFound):
-		return nil, fmt.Errorf("%w: %s", ErrNodeNotFound, name)
-	case err != nil:
-		return nil, fmt.Errorf("%w: failed to get node: %v", ErrInternal, err)
+	if err := r.storage.Get(ctx, key, node); err != nil {
+		switch {
+		case errors.Is(err, storage.ErrNotFound):
+			return nil, fmt.Errorf("%w: %s", ErrNodeNotFound, name)
+		default:
+			return nil, fmt.Errorf("%w: failed to get node: %v", ErrInternal, err)
+		}
 	}
 
 	return node, nil

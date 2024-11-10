@@ -43,8 +43,7 @@ func (r *ReplicaSetRegistry) Create(ctx context.Context, rs *api.ReplicaSet) err
 
 	// Check if ReplicaSet already exists
 	existingRS := &api.ReplicaSet{}
-	err := r.storage.Get(ctx, key, existingRS)
-	if err == nil {
+	if err := r.storage.Get(ctx, key, existingRS); err == nil {
 		return fmt.Errorf("%w: %s", ErrReplicaSetExists, rs.Name)
 	}
 
@@ -58,8 +57,7 @@ func (r *ReplicaSetRegistry) Get(ctx context.Context, name string) (*api.Replica
 
 	key := r.generateKey(name)
 	rs := &api.ReplicaSet{}
-	err := r.storage.Get(ctx, key, rs)
-	if err != nil {
+	if err := r.storage.Get(ctx, key, rs); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrReplicaSetNotFound, name)
 	}
 
@@ -74,8 +72,7 @@ func (r *ReplicaSetRegistry) Update(ctx context.Context, rs *api.ReplicaSet) err
 
 	// Check if ReplicaSet exists
 	existingRS := &api.ReplicaSet{}
-	err := r.storage.Get(ctx, key, existingRS)
-	if err != nil {
+	if err := r.storage.Get(ctx, key, existingRS); err != nil {
 		return fmt.Errorf("%w: %s", ErrReplicaSetNotFound, rs.Name)
 	}
 
@@ -97,8 +94,7 @@ func (r *ReplicaSetRegistry) List(ctx context.Context) ([]*api.ReplicaSet, error
 
 	var replicaSets []*api.ReplicaSet
 
-	err := r.storage.List(ctx, replicaSetPrefix, &replicaSets)
-	if err != nil {
+	if err := r.storage.List(ctx, replicaSetPrefix, &replicaSets); err != nil {
 		return nil, fmt.Errorf("%w", ErrListReplicaSets)
 	}
 

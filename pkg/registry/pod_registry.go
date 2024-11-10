@@ -70,8 +70,7 @@ func (r *PodRegistry) GetPod(ctx context.Context, name string) (*api.Pod, error)
 
 	key := r.generateKey(name)
 	pod := &api.Pod{}
-	err := r.storage.Get(ctx, key, pod)
-	if err != nil {
+	if err := r.storage.Get(ctx, key, pod); err != nil {
 		switch {
 		case errors.Is(err, storage.ErrNotFound):
 			return nil, fmt.Errorf("%w: %s", ErrPodNotFound, name)
@@ -116,8 +115,7 @@ func (r *PodRegistry) ListPods(ctx context.Context) ([]*api.Pod, error) {
 	defer r.mutex.RUnlock()
 
 	var pods []*api.Pod
-	err := r.storage.List(ctx, podPrefix, &pods)
-	if err != nil {
+	if err := r.storage.List(ctx, podPrefix, &pods); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrListPodsFailed, err)
 	}
 

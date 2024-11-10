@@ -28,8 +28,7 @@ type Pod struct {
 // Validate validates the PodSpec of the Pod.
 func (p *Pod) Validate() error {
 	validate := validator.New()
-	err := validate.Struct(p)
-	if err != nil {
+	if err := validate.Struct(p); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidPodSpec, err)
 	}
 
