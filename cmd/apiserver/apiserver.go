@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	address     string
-	etcdPeerPort int
+	address        string
+	etcdPeerPort   int
 	etcdClientPort int
 )
 

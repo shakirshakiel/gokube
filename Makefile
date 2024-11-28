@@ -6,10 +6,22 @@ GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
+GOINSTALL=$(GOCMD) install
 MAIN_PATH=./cmd/etcdtest
 
 # Make parameters
-.PHONY: all build test clean run deps ci install-mockgen mockgen build/apiserver build/controller build/kubelet
+OUT_DIR=out
+DIST_DIR=dist
+BINARIES=apiserver controller kubelet
+BINARY_PATHS=$(addprefix $(OUT_DIR)/,$(BINARIES))
+EXECUTABLES=$(addprefix $(GOPATH)/,$(BINARIES))
+
+BUILD_TARGETS=$(addprefix build/,$(BINARIES))
+DIST_TARGETS=$(addprefix dist/,$(BINARIES))
+INSTALL_TARGETS=$(addprefix install/,$(BINARIES))
+GO_BIN_TARGETS=$(addprefix $(GOPATH)/bin/,$(BINARIES))
+
+.PHONY: all build test clean run deps ci install-mockgen mockgen $(DIST_DIR) $(BUILD_TARGETS) $(DIST_TARGETS) $(INSTALL_TARGETS) $(GO_BIN_TARGETS)
 
 all: test build
 
@@ -56,36 +68,44 @@ install-mockgen:
 	fi
 
 # Output directory
-OUT_DIR=./out
+$(DIST_DIR):
+	@goreleaser build --snapshot --clean
 
-# Binary names
-APISERVER_BINARY=$(OUT_DIR)/apiserver
-CONTROLLER_BINARY=$(OUT_DIR)/controller
-KUBELET_BINARY=$(OUT_DIR)/kubelet
+$(DIST_TARGETS):
+	@goreleaser build --snapshot --clean --id $(@F)
 
 # Main paths
-APISERVER_MAIN=./apiserver/main.go
-CONTROLLER_MAIN=./controller/main.go
-KUBELET_MAIN=./kubelet/main.go
-
 # Ensure the output directory exists
 $(OUT_DIR):
-	mkdir -p $(OUT_DIR)
+	@mkdir -p $(OUT_DIR)
 
 # Build targets
 $(OUT_DIR)/%: $(OUT_DIR)
-	@$(GOBUILD) -o $(@) -v ./cmd/$(@F)/main.go
+	@$(GOBUILD) -o $(@) -v ./cmd/$(@F)/$(@F).go
 	@printf "Built %s\n" $(@F)
 
-build/apiserver: $(APISERVER_BINARY)
-build/controller: $(CONTROLLER_BINARY)
-build/kubelet: $(KUBELET_BINARY)
+build/apiserver: $(OUT_DIR)/apiserver
+build/controller: $(OUT_DIR)/controller
+build/kubelet: $(OUT_DIR)/kubelet
+
+$(GO_BIN_TARGETS):
+	@printf "Installing %s...\n" $(@F)
+	@$(GOINSTALL) ./cmd/$(@F)/$(@F).go
+	@printf "Successfully installed %s\n" $(@F)
+	@printf "Executable located at %s\n\n" $(GOPATH)/bin/$(@F)
+
+install/apiserver: $(GOPATH)/bin/apiserver
+install/controller: $(GOPATH)/bin/controller
+install/kubelet: $(GOPATH)/bin/kubelet
 
 # Combined build target
-build-all: $(APISERVER_BINARY) $(CONTROLLER_BINARY) $(KUBELET_BINARY)
+build-all: $(BINARY_PATHS)
+install-all: $(EXECUTABLES)
 
 clean:
 	@$(GOCLEAN)
-	@rm -f $(APISERVER_BINARY) $(CONTROLLER_BINARY) $(KUBELET_BINARY)
+	@rm -f $(BINARY_PATHS)
 	@rm -rf $(OUT_DIR)
 	@printf "Cleaned up build artifacts\n"
+	@rm -f $(EXECUTABLES)
+	@printf "Cleaned up installed binaries\n"
