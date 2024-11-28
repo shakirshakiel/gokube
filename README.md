@@ -141,6 +141,7 @@ By working with this project, you will gain insights into:
 
 - Kubernetes project for inspiration
 - Patterns Of Distributed Systems for design principles
+```
 
 ## Setting Up the Development Environment
 
