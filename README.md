@@ -1,5 +1,4 @@
 # GoKube: A Miniature Kubernetes-like Container Orchestrator
-
 GoKube is an educational project that implements a simplified version of a container orchestrator, inspired by Kubernetes. This project is designed to teach the concepts of distributed system design using a Kubernetes-like system as an example.
 
 ## Project Overview
@@ -142,3 +141,84 @@ By working with this project, you will gain insights into:
 
 - Kubernetes project for inspiration
 - Patterns Of Distributed Systems for design principles
+
+## Setting Up the Development Environment
+
+To set up the development environment, you have two options: using Devbox or installing the necessary tools individually.
+
+### Option 1: Using Devbox
+
+1. Install Devbox by following the instructions on the [Devbox GitHub page](https://github.com/jetify-com/devbox).
+2. Once Devbox is installed, navigate to the root directory of this project and run:
+
+  ```bash
+  devbox shell
+  ```
+
+This will automatically install the required packages (`goreleaser` and `lima`) and set up the environment.
+
+### Option 2: Installing Tools Individually
+
+If you prefer not to use Devbox, you can install the required tools using Homebrew:
+
+1. Install `goreleaser`:
+
+  ```bash
+  brew install goreleaser
+  ```
+
+2. Install `lima`:
+
+  ```bash
+  brew install lima
+  ```
+
+After installing these tools, you can proceed with the rest of the setup instructions.
+
+## Managing the VM
+
+This setup uses the `workbench/debian-12.yaml` configuration and assumes you are running it on an M series MacBook. If you are using a non-M series MacBook, please ask the instructor to provide the necessary instructions.
+
+When the VM is started, it will have all the necessary tools installed, including Docker and etcd. Additionally, the path to the GoKube binary is set, allowing you to run the apiserver, controller, and kubelet directly from the VM shell.
+
+The Makefile includes commands to manage a Lima VM for running GoKube. Here are the instructions to start, stop, delete, and access the VM shell.
+
+### Starting the VM
+
+To start the VM, run the following command:
+
+```bash
+make start/vm
+```
+
+This command will start a Lima instance named `gokube` using the configuration specified in `workbench/debian-12.yaml`.
+
+### Stopping the VM
+
+To stop the VM, run:
+
+```bash
+make stop/vm
+```
+
+This command will stop the `gokube` Lima instance.
+
+### Deleting the VM
+
+To delete the VM, use:
+
+```bash
+make delete/vm
+```
+
+This command will delete the `gokube` Lima instance.
+
+### Accessing the VM Shell
+
+To access the shell of the running VM, execute:
+
+```bash
+make shell/vm
+```
+
+This command will open a shell in the `gokube` Lima instance, allowing you to interact with the VM directly.

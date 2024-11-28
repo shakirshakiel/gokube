@@ -48,6 +48,54 @@
           "store_path": "/nix/store/lw7kqjrwnv6k42jaiawzsg02nbm6yd44-goreleaser-2.3.2"
         }
       }
+    },
+    "lima@latest": {
+      "last_modified": "2024-11-16T13:27:01Z",
+      "resolved": "github:NixOS/nixpkgs/c69a9bffbecde46b4b939465422ddc59493d3e4d#lima",
+      "source": "devbox-search",
+      "version": "1.0.1",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/q6p9m753a5zxxz07m4nxchy9cn9yw5ky-lima-1.0.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/q6p9m753a5zxxz07m4nxchy9cn9yw5ky-lima-1.0.1"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/14dzc06vh27wqnxjimglw69pl7dqhf99-lima-1.0.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/14dzc06vh27wqnxjimglw69pl7dqhf99-lima-1.0.1"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ln0pxwczq5xgwaczxlf2l2j9zkd4p4xp-lima-1.0.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/ln0pxwczq5xgwaczxlf2l2j9zkd4p4xp-lima-1.0.1"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/9pdiwicp36l50rm6hasyfxm30yaidcs4-lima-1.0.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/9pdiwicp36l50rm6hasyfxm30yaidcs4-lima-1.0.1"
+        }
+      }
     }
   }
 }

@@ -21,7 +21,7 @@ DIST_TARGETS=$(addprefix dist/,$(BINARIES))
 INSTALL_TARGETS=$(addprefix install/,$(BINARIES))
 GO_BIN_TARGETS=$(addprefix $(GOPATH)/bin/,$(BINARIES))
 
-.PHONY: all build test clean run deps ci install-mockgen mockgen $(DIST_DIR) $(BUILD_TARGETS) $(DIST_TARGETS) $(INSTALL_TARGETS) $(GO_BIN_TARGETS)
+.PHONY: all build test clean run deps ci install-mockgen mockgen start/vm stop/vm delete/vm shell/vm $(BUILD_TARGETS) $(DIST_TARGETS) $(INSTALL_TARGETS) $(GO_BIN_TARGETS) $(DIST_DIR)
 
 all: test build
 
@@ -109,3 +109,26 @@ clean:
 	@printf "Cleaned up build artifacts\n"
 	@rm -f $(EXECUTABLES)
 	@printf "Cleaned up installed binaries\n"
+
+# $(HOME)/gokube copy the linux arm64 dist binaries to the home directory
+$(HOME)/gokube: $(DIST_DIR)
+	@mkdir -p $(HOME)/gokube
+	@$(foreach binary,$(BINARIES),cp $(DIST_DIR)/$(binary)_linux_arm64/$(binary) $(HOME)/gokube;)
+	@printf "Copied linux arm64 binaries to $(HOME)/gokube\n"
+
+# Lima commands
+start/vm: $(HOME)/gokube
+	@limactl start --name=gokube workbench/debian-12.yaml --tty=false
+	@printf "Lima instance 'gokube' started\n"
+
+stop/vm:
+	@limactl stop gokube
+	@printf "Lima instance 'gokube' stopped\n"
+
+delete/vm:
+	@limactl delete gokube
+	@printf "Lima instance 'gokube' deleted\n"
+
+shell/vm:
+	@limactl shell --workdir $(HOME) gokube
+	@printf "Entered Lima instance 'gokube' shell\n"
