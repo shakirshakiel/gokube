@@ -21,7 +21,7 @@ DIST_TARGETS=$(addprefix dist/,$(BINARIES))
 INSTALL_TARGETS=$(addprefix install/,$(BINARIES))
 GO_BIN_TARGETS=$(addprefix $(GOPATH)/bin/,$(BINARIES))
 
-.PHONY: all build test clean run deps ci install-mockgen mockgen start/vm stop/vm delete/vm shell/vm $(BUILD_TARGETS) $(DIST_TARGETS) $(INSTALL_TARGETS) $(GO_BIN_TARGETS) $(DIST_DIR)
+.PHONY: all build test clean run deps ci install-mockgen mockgen $(BUILD_TARGETS) $(DIST_TARGETS) $(INSTALL_TARGETS) $(GO_BIN_TARGETS)
 
 all: test build
 
@@ -67,13 +67,6 @@ install-mockgen:
 		$(GOCMD) install go.uber.org/mock/mockgen@latest; \
 	fi
 
-# Output directory
-$(DIST_DIR):
-	@goreleaser build --snapshot --clean
-
-$(DIST_TARGETS):
-	@goreleaser build --snapshot --clean --id $(@F)
-
 # Main paths
 # Ensure the output directory exists
 $(OUT_DIR):
@@ -102,6 +95,23 @@ install/kubelet: $(GOPATH)/bin/kubelet
 build-all: $(BINARY_PATHS)
 install-all: $(EXECUTABLES)
 
+# Output directory
+$(DIST_DIR):
+	@goreleaser build --snapshot --clean
+
+$(DIST_TARGETS):
+	@goreleaser build --snapshot --clean --id $(@F)
+
+GO_KUBE_RELEASE_BINARIES = $(foreach binary,$(BINARIES),$(HOME)/gokube/$(binary))
+
+$(HOME)/gokube:
+	@mkdir -p $(HOME)/gokube
+
+$(GO_KUBE_RELEASE_BINARIES): $(HOME)/gokube
+	@echo $(@F) $(basename $(@F))
+	@cp $(DIST_DIR)/$(@F)_linux_arm64/$(@F) $(HOME)/gokube
+	@printf "Copied linux arm64 binary to $(HOME)/gokube\n"
+
 clean:
 	@$(GOCLEAN)
 	@rm -f $(BINARY_PATHS)
@@ -109,26 +119,31 @@ clean:
 	@printf "Cleaned up build artifacts\n"
 	@rm -f $(EXECUTABLES)
 	@printf "Cleaned up installed binaries\n"
+	@rm -rf $(DIST_DIR)
+	@printf "Cleaned up dist artifacts\n"
+	@rm -rf $(HOME)/gokube
+	@printf "Cleaned up gokube binaries\n"
 
-# $(HOME)/gokube copy the linux arm64 dist binaries to the home directory
-$(HOME)/gokube: $(DIST_DIR)
-	@mkdir -p $(HOME)/gokube
-	@$(foreach binary,$(BINARIES),cp $(DIST_DIR)/$(binary)_linux_arm64/$(binary) $(HOME)/gokube;)
-	@printf "Copied linux arm64 binaries to $(HOME)/gokube\n"
+# Lima commands for VMs
+LIMA_VMS = master worker1
+LIMA_START_TARGETS = $(addprefix start/,$(LIMA_VMS))
+LIMA_STOP_TARGETS = $(addprefix stop/,$(LIMA_VMS))
+LIMA_DELETE_TARGETS = $(addprefix delete/,$(LIMA_VMS))
+LIMA_SHELL_TARGETS = $(addprefix shell/,$(LIMA_VMS))
+LIMA_TARGETS = $(LIMA_START_TARGETS) $(LIMA_STOP_TARGETS) $(LIMA_DELETE_TARGETS) $(LIMA_SHELL_TARGETS)
 
-# Lima commands
-start/vm: $(HOME)/gokube
-	@limactl start --name=gokube workbench/debian-12.yaml --tty=false
-	@printf "Lima instance 'gokube' started\n"
+$(LIMA_START_TARGETS): $(GO_KUBE_RELEASE_BINARIES)
+	@limactl start --name=$(@F) workbench/debian-12.yaml --tty=false
+	@printf "Lima instance '$(@F)' started\n"
 
-stop/vm:
-	@limactl stop gokube
-	@printf "Lima instance 'gokube' stopped\n"
+$(LIMA_STOP_TARGETS):
+	@limactl stop $(@F)
+	@printf "Lima instance '$(@F)' stopped\n"
 
-delete/vm:
-	@limactl delete gokube
-	@printf "Lima instance 'gokube' deleted\n"
+$(LIMA_DELETE_TARGETS):
+	@limactl delete $(@F)
+	@printf "Lima instance '$(@F)' deleted\n"
 
-shell/vm:
-	@limactl shell --workdir $(HOME) gokube
-	@printf "Entered Lima instance 'gokube' shell\n"
+$(LIMA_SHELL_TARGETS):
+	@printf "Entering Lima instance '$(@F)' shell\n"
+	@limactl shell --workdir $(HOME) $(@F)

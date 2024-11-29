@@ -8,9 +8,12 @@ images:
 # Hint: run `limactl prune` to invalidate the cache
 - location: "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-arm64.qcow2"
   arch: "aarch64"
+cpus: 2
+memory: 2G
 mounts:
 - location: "~/gokube"
-#
+networks:
+  - lima: user-v2
 containerd:
   system: false
   user: false
@@ -47,6 +50,12 @@ provision:
       tar xzvf /tmp/etcd-${ETCD_VER}-linux-arm64.tar.gz -C /tmp
       mv /tmp/etcd-${ETCD_VER}-linux-arm64/etcdctl /usr/local/bin/
       rm -rf /tmp/etcd-${ETCD_VER}-linux-arm64 /tmp/etcd-${ETCD_VER}-linux-arm64.tar.gz
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      apt-get update
+      apt-get install -y net-tools
 probes:
   - script: |
       #!/bin/bash
