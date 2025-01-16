@@ -2,11 +2,11 @@ package storage
 
 import (
 	"context"
+	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -96,48 +96,173 @@ func TestEtcdStorage_List(t *testing.T) {
 	})
 }
 
-func TestWatch(t *testing.T) {
-	TestWithEmbeddedEtcd(t, func(t *testing.T, cli *clientv3.Client) {
-		watchKey := "/watch-test/key"
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+func TestEtcdStorage_Watch(t *testing.T) {
+	t.Run("should watch all CRUD operations", func(t *testing.T) {
+		TestWithEmbeddedEtcd(t, func(t *testing.T, cli *clientv3.Client) {
+			storage := NewEtcdStorage(cli)
+			prefix := "/watch-test/"
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
 
-		watchChan := cli.Watch(ctx, watchKey)
+			// Create initial test object
+			obj1 := &TestObject{Name: "test1"}
+			obj2 := &TestObject{Name: "test1-updated"}
+			obj3 := &TestObject{Name: "test2"}
 
-		go func() {
-			time.Sleep(1 * time.Second)
-			_, err := cli.Put(ctx, watchKey, "initial-value")
-			assert.NoError(t, err)
+			// Start watching before making changes
+			watchChan, err := storage.Watch(ctx, prefix)
+			require.NoError(t, err)
 
-			time.Sleep(1 * time.Second)
-			_, err = cli.Put(ctx, watchKey, "updated-value")
-			assert.NoError(t, err)
-
-			time.Sleep(1 * time.Second)
-			_, err = cli.Delete(ctx, watchKey)
-			assert.NoError(t, err)
-		}()
-
-		expectedEvents := []struct {
-			Type  mvccpb.Event_EventType
-			Value string
-		}{
-			{mvccpb.PUT, "initial-value"},
-			{mvccpb.PUT, "updated-value"},
-			{mvccpb.DELETE, ""},
-		}
-
-		for _, expected := range expectedEvents {
-			select {
-			case watchResp := <-watchChan:
-				assert.Len(t, watchResp.Events, 1)
-
-				ev := watchResp.Events[0]
-				assert.Equal(t, expected.Type, ev.Type)
-				assert.Equal(t, expected.Value, string(ev.Kv.Value))
-			case <-ctx.Done():
-				t.Fatalf("Watch timed out")
+			// Test sequence of operations
+			testCases := []struct {
+				name   string
+				action func() error
+				expect watchExpectation
+			}{
+				{
+					name: "create first object",
+					action: func() error {
+						return storage.Create(ctx, prefix+"key1", obj1)
+					},
+					expect: watchExpectation{
+						eventType:   EventAdd,
+						key:         prefix + "key1",
+						hasValue:    true,
+						hasOldValue: false,
+					},
+				},
+				{
+					name: "update first object",
+					action: func() error {
+						return storage.Update(ctx, prefix+"key1", obj2)
+					},
+					expect: watchExpectation{
+						eventType:   EventUpdate,
+						key:         prefix + "key1",
+						hasValue:    true,
+						hasOldValue: true,
+					},
+				},
+				{
+					name: "create second object",
+					action: func() error {
+						return storage.Create(ctx, prefix+"key2", obj3)
+					},
+					expect: watchExpectation{
+						eventType:   EventAdd,
+						key:         prefix + "key2",
+						hasValue:    true,
+						hasOldValue: false,
+					},
+				},
+				{
+					name: "delete first object",
+					action: func() error {
+						return storage.Delete(ctx, prefix+"key1")
+					},
+					expect: watchExpectation{
+						eventType:   EventDelete,
+						key:         prefix + "key1",
+						hasValue:    false,
+						hasOldValue: true,
+					},
+				},
 			}
-		}
+
+			// Execute test cases
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					require.NoError(t, tc.action())
+					verifyWatchEvent(t, watchChan, tc.expect)
+				})
+			}
+		})
 	})
+
+	t.Run("should stop watching when context is cancelled", func(t *testing.T) {
+		TestWithEmbeddedEtcd(t, func(t *testing.T, cli *clientv3.Client) {
+			storage := NewEtcdStorage(cli)
+			ctx, cancel := context.WithCancel(context.Background())
+
+			watchChan, err := storage.Watch(ctx, "/test/")
+			require.NoError(t, err)
+
+			// Cancel context and verify channel is closed
+			cancel()
+			verifyChannelClosed(t, watchChan)
+		})
+	})
+
+	t.Run("should watch multiple objects with prefix", func(t *testing.T) {
+		TestWithEmbeddedEtcd(t, func(t *testing.T, cli *clientv3.Client) {
+			storage := NewEtcdStorage(cli)
+			prefix := "/multi-watch/"
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			watchChan, err := storage.Watch(ctx, prefix)
+			require.NoError(t, err)
+
+			// Create multiple objects in different paths
+			objects := []struct {
+				key string
+				obj *TestObject
+			}{
+				{prefix + "a/key1", &TestObject{Name: "test-a1"}},
+				{prefix + "b/key1", &TestObject{Name: "test-b1"}},
+				{prefix + "a/key2", &TestObject{Name: "test-a2"}},
+			}
+
+			// Create objects and verify events
+			for _, o := range objects {
+				err := storage.Create(ctx, o.key, o.obj)
+				require.NoError(t, err)
+
+				verifyWatchEvent(t, watchChan, watchExpectation{
+					eventType:   EventAdd,
+					key:         o.key,
+					hasValue:    true,
+					hasOldValue: false,
+				})
+			}
+		})
+	})
+}
+
+type watchExpectation struct {
+	eventType   EventType
+	key         string
+	hasValue    bool
+	hasOldValue bool
+}
+
+func verifyWatchEvent(t *testing.T, watchChan <-chan WatchEvent, expect watchExpectation) {
+	select {
+	case event := <-watchChan:
+		assert.Equal(t, expect.eventType, event.Type, "wrong event type")
+		assert.Equal(t, expect.key, event.Key, "wrong key")
+
+		if expect.hasValue {
+			assert.NotEmpty(t, event.Value, "should have value")
+		} else {
+			assert.Empty(t, event.Value, "should not have value")
+		}
+
+		if expect.hasOldValue {
+			assert.NotEmpty(t, event.OldValue, "should have old value")
+		} else {
+			assert.Empty(t, event.OldValue, "should not have old value")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for event")
+	}
+}
+
+func verifyChannelClosed(t *testing.T, watchChan <-chan WatchEvent) {
+	select {
+	case _, ok := <-watchChan:
+		assert.False(t, ok, "Expected watch channel to be closed")
+	case <-time.After(time.Second):
+		t.Fatal("Timed out waiting for channel to close")
+	}
 }

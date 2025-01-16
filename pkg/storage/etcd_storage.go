@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"go.etcd.io/etcd/api/v3/mvccpb"
 	"reflect"
 
 	"gokube/pkg/runtime"
@@ -108,4 +109,99 @@ func (s *EtcdStorage) DeletePrefix(ctx context.Context, prefix string) error {
 	}
 
 	return nil
+}
+
+// EventType represents the type of change that occurred
+type EventType string
+
+const (
+	EventAdd    EventType = "ADD"
+	EventUpdate EventType = "UPDATE"
+	EventDelete EventType = "DELETE"
+)
+
+// WatchEvent represents a change event from etcd
+type WatchEvent struct {
+	Type     EventType
+	Key      string
+	Value    []byte
+	OldValue []byte
+}
+
+// Watch watches for changes on keys with the given prefix
+func (s *EtcdStorage) Watch(ctx context.Context, prefix string) (<-chan WatchEvent, error) {
+	watchChan := make(chan WatchEvent)
+	watcher := s.client.Watch(ctx, prefix, clientv3.WithPrefix(), clientv3.WithPrevKV())
+
+	go s.handleWatchEvents(ctx, watcher, watchChan)
+
+	return watchChan, nil
+}
+
+// handleWatchEvents processes events from etcd and sends them to the watch channel
+func (s *EtcdStorage) handleWatchEvents(
+	ctx context.Context,
+	watcher clientv3.WatchChan,
+	watchChan chan<- WatchEvent,
+) {
+	defer close(watchChan)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case resp, ok := <-watcher:
+			if !ok || resp.Canceled {
+				return
+			}
+			s.processWatchResponse(ctx, resp, watchChan)
+		}
+	}
+}
+
+// processWatchResponse handles a single watch response from etcd
+func (s *EtcdStorage) processWatchResponse(
+	ctx context.Context,
+	resp clientv3.WatchResponse,
+	watchChan chan<- WatchEvent,
+) {
+	for _, event := range resp.Events {
+		watchEvent := s.convertToWatchEvent(event)
+
+		select {
+		case watchChan <- watchEvent:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// convertToWatchEvent converts an etcd event to our WatchEvent type
+func (s *EtcdStorage) convertToWatchEvent(event *clientv3.Event) WatchEvent {
+	watchEvent := WatchEvent{
+		Type:  convertEventType(event),
+		Key:   string(event.Kv.Key),
+		Value: event.Kv.Value,
+	}
+
+	if event.PrevKv != nil {
+		watchEvent.OldValue = event.PrevKv.Value
+	}
+
+	return watchEvent
+}
+
+// convertEventType converts etcd event type to our custom EventType
+func convertEventType(event *clientv3.Event) EventType {
+	switch event.Type {
+	case mvccpb.PUT:
+		if event.PrevKv == nil {
+			return EventAdd
+		}
+		return EventUpdate
+	case mvccpb.DELETE:
+		return EventDelete
+	default:
+		return ""
+	}
 }
