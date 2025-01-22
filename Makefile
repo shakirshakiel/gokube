@@ -21,41 +21,35 @@ DIST_TARGETS=$(addprefix dist/,$(BINARIES))
 INSTALL_TARGETS=$(addprefix install/,$(BINARIES))
 GO_BIN_TARGETS=$(addprefix $(GOPATH)/bin/,$(BINARIES))
 
+# Colors
+CYAN_COLOR_START := \033[36m
+CYAN_COLOR_END := \033[0m
+
 .PHONY: all build test clean run deps ci install-mockgen mockgen $(BUILD_TARGETS) $(DIST_TARGETS) $(INSTALL_TARGETS) $(GO_BIN_TARGETS)
 
-all: test build
+help: ## Prints help (only for targets with comments)
+	@grep -E '^[a-zA-Z._/\-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk -F'[:##]' '{printf "$(CYAN_COLOR_START)%-15s $(CYAN_COLOR_END)%s\n", $$1, $$4}'
 
-build:
-	$(GOBUILD) -o $(BINARY_NAME) -v $(MAIN_PATH)
-
-test:
-	$(GOTEST) -v ./...
-
-run: build
-	./$(BINARY_NAME)
-
-deps:
+deps: ## Install/Upgrade dependencies
 	$(GOGET) ./...
 	$(GOMOD) tidy
 
-test-registry:
-	$(GOTEST) -v ./pkg/registry
-
-test-storage:
-	$(GOTEST) -v ./pkg/storage
-
-lint:
-# Exit with 0 to allow CI to continue with linter errors
-	golangci-lint run --issues-exit-code 0
-
-fmt:
+fmt: ## Format go code
 	gofmt -s -w .
 
-vet:
+vet: ## Run SCA using go vet
 	go vet $(shell go list ./...)
 
-# CI build target
-ci: deps fmt vet lint test build
+lint: ## Run lint
+	docker run --rm -v $(PWD):/app -v $(PWD)/.golangci-lint-cache:/root/.cache -w /app golangci/golangci-lint:v1.63.4 golangci-lint run -v --exclude S1000
+
+test: ## Run all tests
+	$(GOTEST) -v ./...
+
+test/%: ## Run package level tests
+	$(GOTEST) -v ./pkg/$(@F)
+
+ci: deps fmt vet lint test ## Run CI test target(deps,fmt,vet,lint,test)
 	@echo "CI build completed successfully"
 
 mockgen: install-mockgen
