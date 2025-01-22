@@ -11,13 +11,11 @@ MAIN_PATH=./cmd/etcdtest
 
 # Make parameters
 OUT_DIR=out
-DIST_DIR=dist
 BINARIES=apiserver controller kubelet
 BINARY_PATHS=$(addprefix $(OUT_DIR)/,$(BINARIES))
 EXECUTABLES=$(addprefix $(GOPATH)/,$(BINARIES))
 
 BUILD_TARGETS=$(addprefix build/,$(BINARIES))
-DIST_TARGETS=$(addprefix dist/,$(BINARIES))
 INSTALL_TARGETS=$(addprefix install/,$(BINARIES))
 GO_BIN_TARGETS=$(addprefix $(GOPATH)/bin/,$(BINARIES))
 
@@ -28,7 +26,7 @@ CYAN_COLOR_END := \033[0m
 .PHONY: all build test clean run deps ci install-mockgen mockgen $(BUILD_TARGETS) $(DIST_TARGETS) $(INSTALL_TARGETS) $(GO_BIN_TARGETS)
 
 help: ## Prints help (only for targets with comments)
-	@grep -E '^[a-zA-Z._/\-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk -F'[:##]' '{printf "$(CYAN_COLOR_START)%-15s $(CYAN_COLOR_END)%s\n", $$1, $$4}'
+	@grep -E '^[a-zA-Z._/\-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk -F'[:##]' '{printf "$(CYAN_COLOR_START)%-20s $(CYAN_COLOR_END)%s\n", $$2, $$5}'
 
 deps: ## Install/Upgrade dependencies
 	$(GOGET) ./...
@@ -49,31 +47,30 @@ test: ## Run all tests
 test/%: ## Run package level tests
 	$(GOTEST) -v ./pkg/$(@F)
 
-ci: deps fmt vet lint test ## Run CI test target(deps,fmt,vet,lint,test)
-	@echo "CI build completed successfully"
+mockgen: install-mockgen ## Generate mocks using mockgen
+	PROJECT_HOME=$(PWD) go generate ./...
 
-mockgen: install-mockgen
-	go generate ./...
-
-install-mockgen:
+install-mockgen: ## Install mockgen
 	@if ! [ -x "$$(command -v mockgen)" ]; then \
 		echo "mockgen not found, installing..."; \
 		$(GOCMD) install go.uber.org/mock/mockgen@latest; \
 	fi
 
-# Main paths
-# Ensure the output directory exists
-$(OUT_DIR):
-	@mkdir -p $(OUT_DIR)
+$(OUT_DIR): ## Ensure output directory exists
+	@if [ ! -d $(OUT_DIR) ]; then mkdir -p $(OUT_DIR); fi
 
-# Build targets
-$(OUT_DIR)/%: $(OUT_DIR)
+$(OUT_DIR)/%: ## Build to out directory
 	@$(GOBUILD) -o $(@) -v ./cmd/$(@F)/$(@F).go
 	@printf "Built %s\n" $(@F)
 
-build/apiserver: $(OUT_DIR)/apiserver
-build/controller: $(OUT_DIR)/controller
-build/kubelet: $(OUT_DIR)/kubelet
+build/apiserver: $(OUT_DIR)/apiserver ## Build apiserver
+build/controller: $(OUT_DIR)/controller ## Build controller
+build/kubelet: $(OUT_DIR)/kubelet ## Build kubelet
+
+build: build/apiserver build/controller build/kubelet ## Build all
+
+ci: deps fmt vet lint test build ## Run CI target(deps,fmt,vet,lint,test)
+	@echo "CI build completed successfully"
 
 $(GO_BIN_TARGETS):
 	@printf "Installing %s...\n" $(@F)
@@ -81,32 +78,13 @@ $(GO_BIN_TARGETS):
 	@printf "Successfully installed %s\n" $(@F)
 	@printf "Executable located at %s\n\n" $(GOPATH)/bin/$(@F)
 
-install/apiserver: $(GOPATH)/bin/apiserver
-install/controller: $(GOPATH)/bin/controller
-install/kubelet: $(GOPATH)/bin/kubelet
+install/apiserver: $(GOPATH)/bin/apiserver ## Install apiserver in $(GOPATH)/bin
+install/controller: $(GOPATH)/bin/controller ## Install controller in $(GOPATH)/bin
+install/kubelet: $(GOPATH)/bin/kubelet ## Install kubelet in $(GOPATH)/bin
 
-# Combined build target
-build-all: $(BINARY_PATHS)
-install-all: $(EXECUTABLES)
+install: install/apiserver install/controller install/kubelet ## Install all
 
-# Output directory
-$(DIST_DIR):
-	@goreleaser build --snapshot --clean
-
-$(DIST_TARGETS):
-	@goreleaser build --snapshot --clean --id $(@F)
-
-GO_KUBE_RELEASE_BINARIES = $(foreach binary,$(BINARIES),$(HOME)/gokube/$(binary))
-
-$(HOME)/gokube:
-	@mkdir -p $(HOME)/gokube
-
-$(GO_KUBE_RELEASE_BINARIES): $(HOME)/gokube
-	@echo $(@F) $(basename $(@F))
-	@cp $(DIST_DIR)/$(@F)_linux_arm64/$(@F) $(HOME)/gokube
-	@printf "Copied linux arm64 binary to $(HOME)/gokube\n"
-
-clean:
+clean: ## Cleans all directories
 	@$(GOCLEAN)
 	@rm -f $(BINARY_PATHS)
 	@rm -rf $(OUT_DIR)
@@ -118,26 +96,5 @@ clean:
 	@rm -rf $(HOME)/gokube
 	@printf "Cleaned up gokube binaries\n"
 
-# Lima commands for VMs
-LIMA_VMS = master worker1
-LIMA_START_TARGETS = $(addprefix start/,$(LIMA_VMS))
-LIMA_STOP_TARGETS = $(addprefix stop/,$(LIMA_VMS))
-LIMA_DELETE_TARGETS = $(addprefix delete/,$(LIMA_VMS))
-LIMA_SHELL_TARGETS = $(addprefix shell/,$(LIMA_VMS))
-LIMA_TARGETS = $(LIMA_START_TARGETS) $(LIMA_STOP_TARGETS) $(LIMA_DELETE_TARGETS) $(LIMA_SHELL_TARGETS)
-
-$(LIMA_START_TARGETS): $(GO_KUBE_RELEASE_BINARIES)
-	@limactl start --name=$(@F) workbench/debian-12.yaml --tty=false
-	@printf "Lima instance '$(@F)' started\n"
-
-$(LIMA_STOP_TARGETS):
-	@limactl stop $(@F)
-	@printf "Lima instance '$(@F)' stopped\n"
-
-$(LIMA_DELETE_TARGETS):
-	@limactl delete $(@F)
-	@printf "Lima instance '$(@F)' deleted\n"
-
-$(LIMA_SHELL_TARGETS):
-	@printf "Entering Lima instance '$(@F)' shell\n"
-	@limactl shell --workdir $(HOME) $(@F)
+include limactl.mk
+include colima.mk
