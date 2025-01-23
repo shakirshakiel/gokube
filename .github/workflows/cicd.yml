@@ -37,5 +37,26 @@ jobs:
           version: v1.63.4
           args: "-v --exclude S1000"
 
-      - name: Run test
-        run: make test
+      - name: Run test/api
+        run: make test/api
+
+      - name: Run test/controller
+        run: make test/controller
+
+      - name: Run test/kubelet
+        run: make test/kubelet
+
+      - name: Run test/listwatch
+        run: make test/listwatch
+
+      - name: Run test/registry
+        run: make test/registry
+
+      - name: Run test/runtime
+        run: make test/runtime
+
+      - name: Run test/scheduler
+        run: make test/scheduler
+
+      - name: Run test/storage
+        run: make test/storage
