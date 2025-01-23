@@ -60,3 +60,6 @@ jobs:
 
       - name: Run test/storage
         run: make test/storage
+
+      - name: Run all tests
+        run: make test
