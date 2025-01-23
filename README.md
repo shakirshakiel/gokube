@@ -22,7 +22,7 @@ By implementing a miniature version of Kubernetes, this project provides hands-o
 ### 1. Homebrew
 Install homebrew by following the instructions from [homebrew website](https://brew.sh/)
 ### 2. Colima
-This project recommends [colima](https://github.com/abiosoft/colima). Feel free to use alterantives like [Racher desktop](https://rancherdesktop.io/), [Docker desktop](https://www.docker.com/products/docker-desktop/),[Podman desktop](https://podman-desktop.io/). [Orbstack](https://orbstack.dev/) etc., if you are already familiar with it.
+This project recommends [colima](https://github.com/abiosoft/colima). Feel free to use alterantives like [Racher desktop](https://rancherdesktop.io/), [Docker desktop](https://www.docker.com/products/docker-desktop/),[Podman desktop](https://podman-desktop.io/),[Orbstack](https://orbstack.dev/) etc., if you are already familiar with it.
 
 To install colima, run the following command from the project directory
 ```bash
@@ -157,7 +157,7 @@ By working with this project, you will gain insights into:
 
 ## 1. Setting Up the Development Environment
 
-To set up the development environment, there are two alternate options: using Devbox or using limactl
+To set up the development environment, there are two alternate options: using `Devbox` or using `limactl`
 
 ### Option 1: Using Devbox
 
