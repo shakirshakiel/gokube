@@ -4,10 +4,14 @@ package kubelet
 
 import (
 	"context"
+	"io"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,11 +145,12 @@ func TestGetPodStatus(t *testing.T) {
 func createContainers(t *testing.T, ctx context.Context, dockerClient *client.Client, containerNames []string, configModifier func(*container.Config)) []string {
 	ids := make([]string, len(containerNames))
 	for i, name := range containerNames {
+		imageName := "alpine:latest"
 		config := &container.Config{
-			Image: "alpine:latest",
+			Image: imageName,
 		}
 		configModifier(config)
-
+		checkAndPullImage(ctx, dockerClient, imageName)
 		resp, err := dockerClient.ContainerCreate(ctx, config, nil, nil, nil, name)
 		require.NoError(t, err)
 		ids[i] = resp.ID
@@ -157,6 +162,15 @@ func createContainers(t *testing.T, ctx context.Context, dockerClient *client.Cl
 	// Give containers time to run
 	time.Sleep(2 * time.Second)
 	return ids
+}
+
+func checkAndPullImage(ctx context.Context, dockerClient *client.Client, imageName string) {
+	listFilters := filters.NewArgs(filters.Arg("reference", imageName))
+	summaries, _ := dockerClient.ImageList(ctx, image.ListOptions{Filters: listFilters})
+	if len(summaries) == 0 {
+		readCloser, _ := dockerClient.ImagePull(ctx, imageName, image.PullOptions{})
+		io.Copy(os.Stdout, readCloser)
+	}
 }
 
 func removeContainers(t *testing.T, ctx context.Context, dockerClient *client.Client, containerIDs []string) {
