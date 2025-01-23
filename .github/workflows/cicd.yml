@@ -36,3 +36,6 @@ jobs:
         with:
           version: v1.63.4
           args: "-v --exclude S1000"
+
+      - name: Run test
+        run: make test

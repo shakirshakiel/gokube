@@ -75,7 +75,7 @@ build/kubelet: $(OUT_DIR)/kubelet ## Build kubelet
 
 build: build/apiserver build/controller build/kubelet ## Build all
 
-ci: deps fmt vet lint test build ## Run CI target(deps,fmt,vet,lint,test)
+precommit: deps fmt vet lint test build ## Run precommit target(deps,fmt,vet,lint,test)
 	@echo "CI build completed successfully"
 
 $(GO_BIN_TARGETS):
