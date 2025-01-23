@@ -35,6 +35,12 @@ deps: ## Install/Upgrade dependencies
 fmt: ## Format go code
 	gofmt -s -w .
 
+fmt-check: ## Check whether gofmt has been applied
+	@if [ ! -z "$$(gofmt -l .)" ]; then \
+		echo "Your code is not formatted. Run 'make fmt' to format the code"; \
+		exit 1; \
+	fi
+
 vet: ## Run SCA using go vet
 	go vet $(shell go list ./...)
 
