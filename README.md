@@ -15,49 +15,64 @@ By implementing a miniature version of Kubernetes, this project provides hands-o
 
 ## Prerequisites
 
-- Docker installed on your system
 - Basic understanding of Go programming language
 - Familiarity with container concepts
 
-## Building the Docker Image
+## Setup
+### 1. Homebrew
+Install homebrew by following the instructions from [homebrew website](https://brew.sh/)
+### 2. Colima
+This project recommends [colima](https://github.com/abiosoft/colima). Feel free to use alterantives like [Racher desktop](https://rancherdesktop.io/), [Docker desktop](https://www.docker.com/products/docker-desktop/),[Podman desktop](https://podman-desktop.io/). [Orbstack](https://orbstack.dev/) etc., if you are already familiar with it.
 
-To build the Docker image for development and testing, run the following command from the root directory of this project:
-
+To install colima, run the following command from the project directory
 ```bash
-docker build --no-cache -t gokube-builder .
-```
-## Running the Development Environment
-
-To run a container from the built image, use the following command:
-
-```bash
-docker run --ulimit nofile=65536:65536 --privileged --rm -it -v $(pwd):/app gokube-builder:latest
+make colima/install
 ```
 
-This command does the following:
-
-- `--ulimit nofile=65536:65536`: Sets the ulimit for open files to 65536.
-- `--privileged`: Gives extended privileges to this container, necessary for running Docker inside Docker.
-- `--rm`: Automatically removes the container when it exits.
-- `-it`: Runs the container interactively and allocates a pseudo-TTY.
-- `-v $(pwd):/app`: Mounts the current directory to `/app` in the container.
-- `gokube-builder:latest`: Specifies the image to use.
-
-Once the container is running, you can build the project using the following command:
-
+Once colima is installed, run the following command to start colima immediatley and restart at login:
 ```bash
-make ci
-```
-This command will run the continuous integration build process.
-
-### Running Go Commands
-
-Inside the container, you can run all standard Go commands. For example, to run tests for the kubelet package:
-```bash
-go test -v ./pkg/kubelet
+brew services start colima
 ```
 
-You can use similar commands to run tests for other packages, build the project, or perform any other Go-related tasks.
+Run the following command to start a VM:
+```bash
+make colima/start
+```
+
+Verify colima & docker is working by running the following command:
+```bash
+docker ps
+```
+
+### 3. Go
+Install the latest version of golang from the official [website](https://go.dev/doc/install)
+
+Verify golang is installed by running the following command:
+```bash
+go version
+```
+
+### Running Commands
+
+Run the following command to understand what make targets can be run:
+```bash
+make help
+```
+### Basic Commands
+
+To install dependencies - `make deps`
+To format code - `make fmt`
+To run vet - `make vet`
+To run lint - `make lint`
+To run all tests - `make test`
+To run package specific tests(api, controller, kubelet etc.,) - Eg: `make test/api`, `make test/controller`, `make test/kubelet`
+To generate mocks - `make mockgen`
+To build binaries - `make build`
+To build specific binaries - `make build/apiserver`, `make build/controller`, `make build/kubelet`
+To install binaries to GOPATH - `make install`
+To install specific binaries to GOPATH - `make install/apiserver`, `make install/controller`, `make install/kubelet`
+To run all necessary tasks before committing - `make precommit`
+To clean the workspace - `make clean`
 
 ## Project Structure
 
@@ -67,22 +82,19 @@ The GoKube project is organized into several key directories:
 gokube/
 ├── cmd/
 │   ├── apiserver/
-│   ├── controller-manager/
+│   ├── controller/
 │   ├── kubelet/
-│   └── scheduler/
 ├── pkg/
 │   ├── api/
 │   ├── controller/
 │   ├── kubelet/
+│   ├── listwatch/
+│   ├── registry/
+│   ├── runtime/
 │   ├── scheduler/
-│   └── util/
-├── internal/
-│   └── ...
+│   └── storage/
 ├── test/
 │   └── ...
-├── docs/
-│   └── ...
-├── Dockerfile
 ├── go.mod
 ├── go.sum
 └── README.md
@@ -91,17 +103,15 @@ gokube/
   - `api/`: Defines the API objects and clients.
   - `controller/`: Implements the controllers for managing the system state.
   - `kubelet/`: Implements the kubelet functionality.
+  - `listwatch/`: Implements the list and watch functionality.
+  - `registry/`: Maintains the registry for k8s objects (nodes, pod, replicaset)
+  - `runtime/`: Basic runtime utilities
   - `scheduler/`: Implements the scheduling of pods onto nodes.
-  - `util/`: Contains utility functions used across the project.
-
-- `internal/`: Houses internal packages not intended for use outside the project.
+  - `storage/`: Implements the storage handling via etcd
 
 - `test/`: Contains integration and end-to-end tests.
 
-- `docs/`: Project documentation.
-
 This structure mimics Kubernetes' organization, providing a familiar layout for those acquainted with the Kubernetes codebase while simplifying it for educational purposes.
-
 
 ## Components
 
@@ -143,9 +153,11 @@ By working with this project, you will gain insights into:
 - Patterns Of Distributed Systems for design principles
 ```
 
-## Setting Up the Development Environment
+# WORK-IN-PROGRESS
 
-To set up the development environment, you have two options: using Devbox or installing the necessary tools individually.
+## 1. Setting Up the Development Environment
+
+To set up the development environment, there are two alternate options: using Devbox or using limactl
 
 ### Option 1: Using Devbox
 
@@ -158,17 +170,11 @@ To set up the development environment, you have two options: using Devbox or ins
 
 This will automatically install the required packages (`goreleaser` and `lima`) and set up the environment.
 
-### Option 2: Installing Tools Individually
+### Option 2: Using limactl
 
-If you prefer not to use Devbox, you can install the required tools using Homebrew:
+If you prefer limactl use the following instructions
 
-1. Install `goreleaser`:
-
-  ```bash
-  brew install goreleaser
-  ```
-
-2. Install `lima`:
+1. Install `limactl`:
 
   ```bash
   brew install lima
@@ -184,22 +190,24 @@ When the VM is started, it will have all the necessary tools installed, includin
 
 The Makefile includes commands to manage a Lima VM for running GoKube. Here are the instructions to start, stop, delete, and access the VM shell.
 
-### Starting the VM
+### Starting the VMs
 
-To start the VM, run the following command:
+To start the VMs, run the following command:
 
 ```bash
-make start/vm
+make start/master
+make start/worker1
 ```
 
 This command will start a Lima instance named `gokube` using the configuration specified in `workbench/debian-12.yaml`.
 
 ### Stopping the VM
 
-To stop the VM, run:
+To stop the VMs, run:
 
 ```bash
-make stop/vm
+make stop/master
+make stop/worker1
 ```
 
 This command will stop the `gokube` Lima instance.
@@ -209,7 +217,8 @@ This command will stop the `gokube` Lima instance.
 To delete the VM, use:
 
 ```bash
-make delete/vm
+make delete/master
+make delete/worker1
 ```
 
 This command will delete the `gokube` Lima instance.
@@ -219,7 +228,8 @@ This command will delete the `gokube` Lima instance.
 To access the shell of the running VM, execute:
 
 ```bash
-make shell/vm
+make shell/master
+make shell/worker1
 ```
 
 This command will open a shell in the `gokube` Lima instance, allowing you to interact with the VM directly.
