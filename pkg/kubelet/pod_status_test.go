@@ -150,7 +150,7 @@ func createContainers(t *testing.T, ctx context.Context, dockerClient *client.Cl
 			Image: imageName,
 		}
 		configModifier(config)
-		checkAndPullImage(ctx, dockerClient, imageName)
+		checkAndPullImage(t, ctx, dockerClient, imageName)
 		resp, err := dockerClient.ContainerCreate(ctx, config, nil, nil, nil, name)
 		require.NoError(t, err)
 		ids[i] = resp.ID
@@ -164,12 +164,15 @@ func createContainers(t *testing.T, ctx context.Context, dockerClient *client.Cl
 	return ids
 }
 
-func checkAndPullImage(ctx context.Context, dockerClient *client.Client, imageName string) {
+func checkAndPullImage(t *testing.T, ctx context.Context, dockerClient *client.Client, imageName string) {
 	listFilters := filters.NewArgs(filters.Arg("reference", imageName))
-	summaries, _ := dockerClient.ImageList(ctx, image.ListOptions{Filters: listFilters})
+	summaries, err := dockerClient.ImageList(ctx, image.ListOptions{Filters: listFilters})
+	require.NoError(t, err)
 	if len(summaries) == 0 {
-		readCloser, _ := dockerClient.ImagePull(ctx, imageName, image.PullOptions{})
-		io.Copy(os.Stdout, readCloser)
+		readCloser, err := dockerClient.ImagePull(ctx, imageName, image.PullOptions{})
+		require.NoError(t, err)
+		_, err = io.Copy(os.Stdout, readCloser)
+		require.NoError(t, err)
 	}
 }
 
