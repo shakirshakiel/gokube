@@ -22,4 +22,5 @@ jobs:
         with:
           go-version: 1.23.5
       
-      - run: go version
+      - name: Run lint, build and test
+        run: make ci
