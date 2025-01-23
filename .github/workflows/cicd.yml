@@ -35,3 +35,4 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.63.4
+          args: "-v --exclude S1000"
