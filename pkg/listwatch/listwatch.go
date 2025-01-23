@@ -31,4 +31,3 @@ func (lw *ListWatch) List(ctx context.Context) ([]interface{}, error) {
 func (lw *ListWatch) WatchPrefix() string {
 	return lw.watchPrefix
 }
-
