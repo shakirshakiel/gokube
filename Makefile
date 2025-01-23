@@ -7,7 +7,6 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOINSTALL=$(GOCMD) install
-MAIN_PATH=./cmd/etcdtest
 
 # Make parameters
 OUT_DIR=out
