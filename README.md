@@ -60,19 +60,19 @@ make help
 ```
 ### Basic Commands
 
-To install dependencies - `make deps`
-To format code - `make fmt`
-To run vet - `make vet`
-To run lint - `make lint`
-To run all tests - `make test`
-To run package specific tests(api, controller, kubelet etc.,) - Eg: `make test/api`, `make test/controller`, `make test/kubelet`
-To generate mocks - `make mockgen`
-To build binaries - `make build`
-To build specific binaries - `make build/apiserver`, `make build/controller`, `make build/kubelet`
-To install binaries to GOPATH - `make install`
-To install specific binaries to GOPATH - `make install/apiserver`, `make install/controller`, `make install/kubelet`
-To run all necessary tasks before committing - `make precommit`
-To clean the workspace - `make clean`
+- To install dependencies - `make deps`
+- To format code - `make fmt`
+- To run vet - `make vet`
+- To run lint - `make lint`
+- To run all tests - `make test`
+- To run package specific tests(api, controller, kubelet etc.,) - Eg: `make test/api`, `make test/controller`, `make test/kubelet`
+- To generate mocks - `make mockgen`
+- To build binaries - `make build`
+- To build specific binaries - `make build/apiserver`, `make build/controller`, `make build/kubelet`
+- To install binaries to GOPATH - `make install`
+- To install specific binaries to GOPATH - `make install/apiserver`, `make install/controller`, `make install/kubelet`
+- To run all necessary tasks before committing - `make precommit`
+- To clean the workspace - `make clean`
 
 ## Project Structure
 
