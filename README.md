@@ -44,6 +44,12 @@ Verify colima & docker is working by running the following command:
 docker ps
 ```
 
+Once it is verfied, add the following lines to your `~/.zshrc` or `~/.basrc` based on the type of your shell:
+
+```bash
+export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+```
+
 ### 3. Go
 Install the latest version of golang from the official [website](https://go.dev/doc/install)
 
