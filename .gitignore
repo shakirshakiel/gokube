@@ -45,3 +45,7 @@ etcd-data/
 out/
 
 dist/
+
+# golangci-lint cache directory
+.golangci-lint-cache/**
+!.golangci-lint-cache/.keep

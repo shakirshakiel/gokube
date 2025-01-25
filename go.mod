@@ -1,6 +1,6 @@
 module gokube
 
-go 1.23.1
+go 1.23.5
 
 require (
 	github.com/docker/docker v26.1.5+incompatible
