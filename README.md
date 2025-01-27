@@ -21,7 +21,14 @@ By implementing a miniature version of Kubernetes, this project provides hands-o
 ## Setup
 ### 1. Homebrew
 Install homebrew by following the instructions from [homebrew website](https://brew.sh/)
-### 2. Colima
+
+### 2. Docker
+Install docker client using the following command:
+```bash
+brew install docker
+```
+
+### 3. Colima
 This project recommends [colima](https://github.com/abiosoft/colima). Feel free to use alterantives like [Racher desktop](https://rancherdesktop.io/), [Docker desktop](https://www.docker.com/products/docker-desktop/),[Podman desktop](https://podman-desktop.io/),[Orbstack](https://orbstack.dev/) etc., if you are already familiar with it.
 
 To install colima, run the following command from the project directory
@@ -50,7 +57,7 @@ Once it is verfied, add the following lines to your `~/.zshrc` or `~/.basrc` bas
 export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
 ```
 
-### 3. Go
+### 4. Go
 Install the latest version of golang from the official [website](https://go.dev/doc/install)
 
 Verify golang is installed by running the following command:
@@ -159,22 +166,24 @@ By working with this project, you will gain insights into:
 - Patterns Of Distributed Systems for design principles
 ```
 
-# WORK-IN-PROGRESS
+## Alternate options to set your Development Environment
 
-## 1. Setting Up the Development Environment
+To set up the development environment, there are two more options that this project supports:
+- `devbox`
+- `limactl`
 
-To set up the development environment, there are two alternate options: using `Devbox` or using `limactl`
+### 1: Using devbox
 
-### Option 1: Using Devbox
-
-1. Install Devbox by following the instructions on the [Devbox GitHub page](https://github.com/jetify-com/devbox).
-2. Once Devbox is installed, navigate to the root directory of this project and run:
+1. Install devbox by following the instructions [here](https://www.jetify.com/docs/devbox/installing_devbox/).
+2. Once devbox is installed, navigate to the root directory of this project and run:
 
   ```bash
   devbox shell
   ```
 
-This will automatically install the required packages (`goreleaser` and `lima`) and set up the environment.
+This will automatically install the required packages (`go`, `docker` and `colima`) and set up the environment. You can run the make commands from devbox shell.
+
+# WORK-IN-PROGRESS
 
 ### Option 2: Using limactl
 
