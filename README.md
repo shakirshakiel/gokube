@@ -65,6 +65,12 @@ Verify golang is installed by running the following command:
 go version
 ```
 
+### 5. Process Compose
+Install the latest version of [process-compose](https://f1bonacc1.github.io/process-compose/) which is required to run the project
+```bash
+brew install f1bonacc1/tap/process-compose
+```
+
 ### Running Commands
 
 Run the following command to understand what make targets can be run:
@@ -85,7 +91,14 @@ make help
 - To install binaries to GOPATH - `make install`
 - To install specific binaries to GOPATH - `make install/apiserver`, `make install/controller`, `make install/kubelet`
 - To run all necessary tasks before committing - `make precommit`
+- To run the project - `make run`
 - To clean the workspace - `make clean`
+
+### Running the project
+Run the following command to see the project in action:
+```bash
+make run
+```
 
 ## Project Structure
 
@@ -177,11 +190,16 @@ To set up the development environment, there are two more options that this proj
 1. Install devbox by following the instructions [here](https://www.jetify.com/docs/devbox/installing_devbox/).
 2. Once devbox is installed, navigate to the root directory of this project and run:
 
-  ```bash
-  devbox shell
-  ```
+```bash
+devbox shell
+```
 
 This will automatically install the required packages (`go`, `docker` and `colima`) and set up the environment. You can run the make commands from devbox shell.
+3. Run the following command to see the project in action:
+
+```bash
+devbox services up
+```
 
 # WORK-IN-PROGRESS
 

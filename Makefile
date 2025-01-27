@@ -88,6 +88,8 @@ install/controller: $(GOPATH)/bin/controller ## Install controller in $(GOPATH)/
 install/kubelet: $(GOPATH)/bin/kubelet ## Install kubelet in $(GOPATH)/bin
 
 install: install/apiserver install/controller install/kubelet ## Install all
+run: ### Run the project
+	process-compose -f process-compose.yml up
 
 clean: ## Cleans all directories
 	@$(GOCLEAN)
