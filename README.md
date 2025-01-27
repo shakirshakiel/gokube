@@ -100,6 +100,8 @@ Run the following command to see the project in action:
 make run
 ```
 
+If there is a port conflict, you can change the port number variable `PORT` in `.env` file.
+
 ## Project Structure
 
 The GoKube project is organized into several key directories:
@@ -196,7 +198,6 @@ devbox shell
 
 This will automatically install the required packages (`go`, `docker` and `colima`) and set up the environment. You can run the make commands from devbox shell.
 3. Run the following command to see the project in action:
-
 ```bash
 devbox services up
 ```
