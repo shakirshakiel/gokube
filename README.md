@@ -199,7 +199,7 @@ devbox shell
 This will automatically install the required packages (`go`, `docker` and `colima`) and set up the environment. You can run the make commands from devbox shell.
 3. Run the following command to see the project in action:
 ```bash
-devbox services up
+devbox run app
 ```
 
 # WORK-IN-PROGRESS

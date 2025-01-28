@@ -17,6 +17,9 @@
     "scripts": {
       "test": [
         "make -B test"
+      ],
+      "app": [
+        "make run"
       ]
     }
   }
