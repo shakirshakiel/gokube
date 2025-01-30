@@ -36,4 +36,4 @@ jobs:
           args: "-v --exclude S1000"
 
       - name: Run all tests
-        run: make test
+        run: make -B test
