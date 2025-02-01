@@ -72,7 +72,7 @@ type ReplicaSet struct {
 
 // ReplicaSetSpec is the specification of a ReplicaSet
 type ReplicaSetSpec struct {
-	Replicas int32             `json:"replicas"`
+	Replicas int32             `json:"replicas" validate:"gte=0"`
 	Selector map[string]string `json:"selector"`
 	Template PodTemplateSpec   `json:"template"`
 }
