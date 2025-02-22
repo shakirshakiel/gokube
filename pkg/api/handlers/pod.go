@@ -73,6 +73,10 @@ func (h *PodHandler) ListPods(request *restful.Request, response *restful.Respon
 		return
 	}
 
+	if pods == nil {
+		pods = make([]*api.Pod, 0)
+	}
+
 	if nodeName != "" {
 		filteredPods := make([]*api.Pod, 0)
 		for _, pod := range pods {
