@@ -26,8 +26,10 @@ $(GO_KUBE_RELEASE_BINARIES): $(HOME)/gokube ## Copy binaries to gokube
 	@cp $(DIST_DIR)/$(@F)_linux_arm64_v8.0/$(@F) $(HOME)/gokube/
 	@printf "Copied linux arm64 binary to $(HOME)/gokube\n"
 
+install-dist: dist $(HOME)/gokube/apiserver $(HOME)/gokube/controller $(HOME)/gokube/kubelet $(HOME)/gokube/scheduler ## Create distributions and copy to gokube directory
+
 # Lima commands for VMs
-LIMA_VMS = master worker1
+LIMA_VMS = master worker1 worker2
 LIMA_START_TARGETS = $(addprefix start/,$(LIMA_VMS))
 LIMA_STOP_TARGETS = $(addprefix stop/,$(LIMA_VMS))
 LIMA_DELETE_TARGETS = $(addprefix delete/,$(LIMA_VMS))
