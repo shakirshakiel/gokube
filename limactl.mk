@@ -30,6 +30,7 @@ install-dist: dist $(HOME)/gokube/apiserver $(HOME)/gokube/controller $(HOME)/go
 
 # Lima commands for VMs
 LIMA_VMS = master worker1 worker2
+LIMA_INIT_TARGETS = $(addprefix init/,$(LIMA_VMS))
 LIMA_START_TARGETS = $(addprefix start/,$(LIMA_VMS))
 LIMA_STOP_TARGETS = $(addprefix stop/,$(LIMA_VMS))
 LIMA_DELETE_TARGETS = $(addprefix delete/,$(LIMA_VMS))
@@ -50,3 +51,12 @@ $(LIMA_DELETE_TARGETS): ## Delete Lima VM
 $(LIMA_SHELL_TARGETS): ## Go to shell of Lima VM
 	@printf "Entering Lima instance '$(@F)' shell\n"
 	@limactl shell --workdir $(HOME) $(@F)
+
+lima/init-vms: $(GO_KUBE_RELEASE_BINARIES) start/master stop/master start/worker1 stop/worker1 start/worker2 stop/worker2 ## Init Lima VMs
+
+lima/start-vms: start/master start/worker1 start/worker2 ## Start all Lima VMs
+
+lima/run: ### Run the project
+	process-compose -f process-compose-lima.yml up
+
+lima/cleanup: stop/master stop/worker1 stop/worker2 delete/master delete/worker1 delete/worker2 # Cleanup all lima vms

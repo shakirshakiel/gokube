@@ -38,7 +38,7 @@ processes:
     availability: *availability
 
   scheduler:
-    command: "./out/scheduler --etcd-port 2379"
+    command: "./out/scheduler"
     depends_on:
       build:
         condition: process_completed_successfully
