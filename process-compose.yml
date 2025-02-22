@@ -8,7 +8,7 @@ x-availability: &availability
 
 processes:
   build: 
-    command: make build
+    command: make -B build
 
   apiserver:
     command: "./out/apiserver --address :${PORT}"
