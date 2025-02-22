@@ -1,0 +1,65 @@
+version: "0.5"
+
+x-availability: &availability
+  restart: always
+
+processes:
+
+  apiserver:
+    command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima ./gokube/apiserver --address :${PORT}"
+    availability: *availability
+    liveness_probe: &probe
+      period_seconds: 5
+      http_get:
+        host: ${HOST}
+        scheme: http
+        path: "/api/v1/healthz"
+        port: ${PORT}
+    readiness_probe: *probe
+    shutdown:
+      command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima killall apiserver"
+
+  controller:
+    command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima ./gokube/controller"
+    availability: *availability
+    shutdown:
+      command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima killall controller"
+
+  scheduler:
+    command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima ./gokube/scheduler"
+    depends_on:
+      apiserver:
+        condition: process_healthy
+    availability: *availability
+    shutdown:
+      command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima killall scheduler"
+
+  worker1:
+    command: "LIMA_INSTANCE=worker1 LIMA_WORKDIR=$HOME lima ./gokube/kubelet --node-name worker1 --api-server-url 192.168.104.1:${PORT}"
+    depends_on:
+      apiserver:
+        condition: process_healthy
+    availability: *availability
+    shutdown:
+      command: "LIMA_INSTANCE=worker1 LIMA_WORKDIR=$HOME lima killall kubelet"
+
+  worker1-dockerps:
+    command: "LIMA_INSTANCE=worker1 LIMA_WORKDIR=$HOME lima docker ps"
+    availability:
+      restart: always
+      backoff_seconds: 3
+
+  worker2:
+    command: "LIMA_INSTANCE=worker2 LIMA_WORKDIR=$HOME lima ./gokube/kubelet --node-name worker2 --api-server-url 192.168.104.1:${PORT}"
+    depends_on:
+      apiserver:
+        condition: process_healthy
+    availability: *availability
+    shutdown:
+      command: "LIMA_INSTANCE=worker2 LIMA_WORKDIR=$HOME lima killall kubelet"
+
+  worker2-dockerps:
+    command: "LIMA_INSTANCE=worker2 LIMA_WORKDIR=$HOME lima docker ps"
+    availability:
+      restart: always
+      backoff_seconds: 3
