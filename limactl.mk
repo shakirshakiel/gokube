@@ -37,20 +37,20 @@ LIMA_DELETE_TARGETS = $(addprefix delete/,$(LIMA_VMS))
 LIMA_SHELL_TARGETS = $(addprefix shell/,$(LIMA_VMS))
 
 $(LIMA_START_TARGETS): $(GO_KUBE_RELEASE_BINARIES) ## Start Lima VM
-	@limactl start --name=$(@F) workbench/debian-12.yaml --tty=false
+	@limactl start --name=$(@F) workbench/debian-12.yaml --log-level error --tty=false
 	@printf "Lima instance '$(@F)' started\n"
 
 $(LIMA_STOP_TARGETS): ## Stop Lima VM
-	@limactl stop -f $(@F)
+	@limactl stop -f --log-level error $(@F)
 	@printf "Lima instance '$(@F)' stopped\n"
 
 $(LIMA_DELETE_TARGETS): ## Delete Lima VM
-	@limactl delete $(@F)
+	@limactl delete --log-level error $(@F)
 	@printf "Lima instance '$(@F)' deleted\n"
 
 $(LIMA_SHELL_TARGETS): ## Go to shell of Lima VM
 	@printf "Entering Lima instance '$(@F)' shell\n"
-	@limactl shell --workdir $(HOME) $(@F)
+	@limactl shell --workdir $(HOME) --log-level error $(@F)
 
 lima/install: ## Install Lima
 	brew install lima

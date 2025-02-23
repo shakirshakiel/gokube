@@ -1,12 +1,20 @@
 version: "0.5"
 
+x-depends-on: &depends_on
+  apiserver:
+    condition: process_healthy
 x-availability: &availability
   restart: always
+
+environment:
+  - "LIMA_WORKDIR=$HOME"
 
 processes:
 
   apiserver:
-    command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima ./gokube/apiserver --address :${PORT}"
+    command: "lima ./gokube/apiserver --address :${PORT}"
+    environment:
+      - "LIMA_INSTANCE=master"
     availability: *availability
     liveness_probe: &probe
       period_seconds: 5
@@ -17,49 +25,60 @@ processes:
         port: ${PORT}
     readiness_probe: *probe
     shutdown:
-      command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima killall apiserver"
+      command: "lima killall apiserver"
 
   controller:
-    command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima ./gokube/controller"
+    command: "lima ./gokube/controller"
+    environment:
+      - "LIMA_INSTANCE=master"
+    depends_on: *depends_on
     availability: *availability
     shutdown:
-      command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima killall controller"
+      command: "lima killall controller"
 
   scheduler:
-    command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima ./gokube/scheduler"
-    depends_on:
-      apiserver:
-        condition: process_healthy
+    command: "lima ./gokube/scheduler"
+    environment:
+      - "LIMA_INSTANCE=master"
+    depends_on: *depends_on
     availability: *availability
     shutdown:
-      command: "LIMA_INSTANCE=master LIMA_WORKDIR=$HOME lima killall scheduler"
+      command: "lima killall scheduler"
 
   worker1:
-    command: "LIMA_INSTANCE=worker1 LIMA_WORKDIR=$HOME lima ./gokube/kubelet --node-name worker1 --api-server-url 192.168.104.1:${PORT}"
+    command: "lima ./gokube/kubelet --node-name worker1 --api-server-url ${LIMA_MASTER_HOST}:${PORT}"
+    environment:
+      - "LIMA_INSTANCE=worker1"
     depends_on:
       apiserver:
         condition: process_healthy
     availability: *availability
     shutdown:
-      command: "LIMA_INSTANCE=worker1 LIMA_WORKDIR=$HOME lima killall kubelet"
+      command: "lima killall kubelet"
 
   worker1-dockerps:
-    command: "LIMA_INSTANCE=worker1 LIMA_WORKDIR=$HOME lima docker ps"
+    command: "lima docker ps"
+    environment:
+      - "LIMA_INSTANCE=worker1"
     availability:
       restart: always
       backoff_seconds: 3
 
   worker2:
-    command: "LIMA_INSTANCE=worker2 LIMA_WORKDIR=$HOME lima ./gokube/kubelet --node-name worker2 --api-server-url 192.168.104.1:${PORT}"
+    command: "lima ./gokube/kubelet --node-name worker2 --api-server-url ${LIMA_MASTER_HOST}:${PORT}"
+    environment:
+      - "LIMA_INSTANCE=worker2"
     depends_on:
       apiserver:
         condition: process_healthy
     availability: *availability
     shutdown:
-      command: "LIMA_INSTANCE=worker2 LIMA_WORKDIR=$HOME lima killall kubelet"
+      command: "lima killall kubelet"
 
   worker2-dockerps:
-    command: "LIMA_INSTANCE=worker2 LIMA_WORKDIR=$HOME lima docker ps"
+    command: "lima docker ps"
+    environment:
+      - "LIMA_INSTANCE=worker2"
     availability:
       restart: always
       backoff_seconds: 3
