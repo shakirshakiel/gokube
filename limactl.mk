@@ -26,7 +26,7 @@ $(GO_KUBE_RELEASE_BINARIES): $(HOME)/gokube ## Copy binaries to gokube
 	@cp $(DIST_DIR)/$(@F)_linux_arm64_v8.0/$(@F) $(HOME)/gokube/
 	@printf "Copied linux arm64 binary to $(HOME)/gokube\n"
 
-install-dist: dist $(HOME)/gokube/apiserver $(HOME)/gokube/controller $(HOME)/gokube/kubelet $(HOME)/gokube/scheduler ## Create distributions and copy to gokube directory
+install-dist: dist $(GO_KUBE_RELEASE_BINARIES) ## Create distributions and copy to gokube directory
 
 # Lima commands for VMs
 LIMA_VMS = master worker1 worker2
@@ -41,7 +41,7 @@ $(LIMA_START_TARGETS): $(GO_KUBE_RELEASE_BINARIES) ## Start Lima VM
 	@printf "Lima instance '$(@F)' started\n"
 
 $(LIMA_STOP_TARGETS): ## Stop Lima VM
-	@limactl stop $(@F)
+	@limactl stop -f $(@F)
 	@printf "Lima instance '$(@F)' stopped\n"
 
 $(LIMA_DELETE_TARGETS): ## Delete Lima VM
@@ -52,11 +52,14 @@ $(LIMA_SHELL_TARGETS): ## Go to shell of Lima VM
 	@printf "Entering Lima instance '$(@F)' shell\n"
 	@limactl shell --workdir $(HOME) $(@F)
 
-lima/init-vms: $(GO_KUBE_RELEASE_BINARIES) start/master stop/master start/worker1 stop/worker1 start/worker2 stop/worker2 ## Init Lima VMs
+lima/install: ## Install Lima
+	brew install lima
 
-lima/start-vms: start/master start/worker1 start/worker2 ## Start all Lima VMs
+lima/init-vms: $(LIMA_START_TARGETS) $(LIMA_STOP_TARGETS) ## Init Lima VMs
+
+lima/start-vms: $(LIMA_START_TARGETS) ## Start all Lima VMs
 
 lima/run: ### Run the project
-	process-compose -f process-compose-lima.yml up
+	@process-compose -f process-compose-lima.yml up
 
-lima/cleanup: stop/master stop/worker1 stop/worker2 delete/master delete/worker1 delete/worker2 # Cleanup all lima vms
+lima/clean: $(LIMA_STOP_TARGETS) $(LIMA_DELETE_TARGETS) # Cleanup all lima vms
