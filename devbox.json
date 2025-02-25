@@ -3,11 +3,12 @@
   "packages": [
     "go@1.23.4",
     "docker@27.5.0",
-    "colima@0.8.1"
+    "colima@0.8.1",
+    "git@latest"
   ],
   "env": {
-    "PATH": "$PATH:$PWD/bin:$HOME/go/bin",
-    "DOCKER_HOST": "unix://${HOME}/.colima/default/docker.sock",
+    "PATH":         "$PATH:$PWD/bin:$HOME/go/bin",
+    "DOCKER_HOST":  "unix://${HOME}/.colima/default/docker.sock",
     "PROJECT_HOME": "$PWD"
   },
   "shell": {

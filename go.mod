@@ -6,12 +6,14 @@ require (
 	github.com/docker/docker v26.1.5+incompatible
 	github.com/emicklei/go-restful/v3 v3.12.1
 	github.com/go-playground/validator/v10 v10.22.1
+	github.com/prometheus/client_golang v1.20.2
 	github.com/spf13/cobra v1.1.3
 	github.com/stretchr/testify v1.9.0
 	go.etcd.io/etcd/api/v3 v3.5.16
 	go.etcd.io/etcd/client/v3 v3.5.16
 	go.etcd.io/etcd/server/v3 v3.5.16
 	go.uber.org/mock v0.5.0
+	go.uber.org/zap v1.21.0
 	google.golang.org/appengine v1.6.7
 )
 
@@ -60,7 +62,6 @@ require (
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.20.2 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
@@ -86,7 +87,6 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
-	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect

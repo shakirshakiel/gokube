@@ -152,6 +152,11 @@ This structure mimics Kubernetes' organization, providing a familiar layout for 
 - Basic container management (create, start, stop)
 - Simple pod creation and management
 - Rudimentary node management
+- Robust etcd-based ListWatch implementation with:
+  - Automatic reconnection with exponential backoff
+  - Prometheus metrics for monitoring
+  - Configurable retry behavior
+  - Efficient event delivery via channels
 
 ## TODOs
 
