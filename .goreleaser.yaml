@@ -17,6 +17,7 @@ builds:
       - darwin
     goarch: &build_goarch
       - arm64
+      - amd64
   - id: controller
     binary: controller
     main: cmd/controller/controller.go
